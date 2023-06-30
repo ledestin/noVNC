@@ -135,11 +135,13 @@ const UI = {
             .addEventListener('click', UI.hideStatus);
         UI.openControlbar();
 
+        // 
+
         UI.updateVisualState('init');
 
         document.documentElement.classList.remove("noVNC_loading");
 
-        let autoconnect = WebUtil.getConfigVar('autoconnect', false);
+        let autoconnect = WebUtil.getConfigVar('autoconnect', true);
         if (autoconnect === 'true' || autoconnect == '1') {
             autoconnect = true;
             UI.connect();
@@ -197,6 +199,19 @@ const UI = {
         UI.initSetting('logging', 'warn');
         UI.updateLogging();
 
+        // Stream Quality Presets
+        let qualityDropdown = document.getElementById("noVNC_setting_video_quality");
+        let supportsSharedArrayBuffers = typeof SharedArrayBuffer !== "undefined";
+        qualityDropdown.appendChild(Object.assign(document.createElement("option"),{value:0,label:"Static"}))
+        qualityDropdown.appendChild(Object.assign(document.createElement("option"),{value:1,label:"Low"}))
+        qualityDropdown.appendChild(Object.assign(document.createElement("option"),{value:2,label:"Medium"}))
+        qualityDropdown.appendChild(Object.assign(document.createElement("option"),{value:3,label:"High"}))
+        qualityDropdown.appendChild(Object.assign(document.createElement("option"),{value:4,label:"Extreme"}))
+        if (supportsSharedArrayBuffers) {
+            qualityDropdown.appendChild(Object.assign(document.createElement("option"),{value:5,label:"Lossless"}))
+        }
+        qualityDropdown.appendChild(Object.assign(document.createElement("option"),{value:10,label:"Custom"}))
+
         // if port == 80 (or 443) then it won't be present and should be
         // set manually
         let port = window.location.port;
@@ -245,6 +260,7 @@ const UI = {
         UI.initSetting('virtual_keyboard_visible', false);
         UI.initSetting('enable_ime', false);
         UI.initSetting('enable_webrtc', false);
+        UI.initSetting('enable_hidpi', false);
         UI.toggleKeyboardControls();
 
         if (WebUtil.isInsideKasmVDI()) {
@@ -559,6 +575,8 @@ const UI = {
         UI.addSettingChangeHandler('enable_ime', UI.toggleIMEMode);
         UI.addSettingChangeHandler('enable_webrtc');
         UI.addSettingChangeHandler('enable_webrtc', UI.toggleWebRTC);
+        UI.addSettingChangeHandler('enable_hidpi');
+        UI.addSettingChangeHandler('enable_hidpi', UI.enableHiDpi);
     },
 
     addFullscreenHandlers() {
@@ -592,7 +610,6 @@ const UI = {
 
     // Disable/enable controls depending on connection state
     updateVisualState(state) {
-
         document.documentElement.classList.remove("noVNC_connecting");
         document.documentElement.classList.remove("noVNC_connected");
         document.documentElement.classList.remove("noVNC_disconnecting");
@@ -775,6 +792,9 @@ const UI = {
     openControlbar() {
         document.getElementById('noVNC_control_bar')
             .classList.add("noVNC_open");
+        if (WebUtil.isInsideKasmVDI()) {
+             parent.postMessage({ action: 'control_open', value: 'Control bar opened'}, '*' );
+        }
     },
 
     closeControlbar() {
@@ -783,6 +803,9 @@ const UI = {
             .classList.remove("noVNC_open");
         if (UI.rfb) {
             UI.rfb.focus();
+        }
+        if (WebUtil.isInsideKasmVDI()) {
+             parent.postMessage({ action: 'control_close', value: 'Control bar closed'}, '*' );
         }
     },
 
@@ -1400,6 +1423,7 @@ const UI = {
         UI.rfb.keyboard.enableIME = UI.getSetting('enable_ime');
         UI.rfb.clipboardBinary = supportsBinaryClipboard() && UI.rfb.clipboardSeamless;
         UI.rfb.enableWebRTC = UI.getSetting('enable_webrtc');
+        UI.rfb.enableHiDpi = UI.getSetting('enable_hidpi');
         UI.rfb.mouseButtonMapper = UI.initMouseButtonMapper();
         if (UI.rfb.videoQuality === 5) {
             UI.rfb.enableQOI = true;
@@ -1434,7 +1458,9 @@ const UI = {
                 UI.rfb.addEventListener("clipboard", UI.clipboardRx);
             }
             UI.rfb.addEventListener("disconnect", UI.disconnectedRx);
-            document.getElementById('noVNC_control_bar_anchor').setAttribute('style', 'display: none');
+            if (! WebUtil.getConfigVar('show_control_bar')) {
+                document.getElementById('noVNC_control_bar_anchor').setAttribute('style', 'display: none');
+            }
 
             //keep alive for websocket connection to stay open, since we may not control reverse proxies
             //send a keep alive within a window that we control
@@ -1442,7 +1468,7 @@ const UI = {
 
                 const timeSinceLastActivityInS = (Date.now() - UI.rfb.lastActiveAt) / 1000;
                 let idleDisconnectInS = 1200; //20 minute default 
-                if (Number.isFinite(UI.rfb.idleDisconnect)) {
+                if (Number.isFinite(parseFloat(UI.rfb.idleDisconnect))) {
                     idleDisconnectInS = parseFloat(UI.rfb.idleDisconnect) * 60;
                 }
 
@@ -1692,6 +1718,10 @@ const UI = {
                     UI.rfb.idleDisconnect = idle_timeout_min;
                     console.log(`Updated the idle timeout to ${event.data.value}s`);
                     break;
+                case 'enable_hidpi':
+                    UI.forceSetting('enable_hidpi', event.data.value, false);
+                    UI.enableHiDpi();
+                    break;
             }
         }
     },
@@ -1774,6 +1804,10 @@ const UI = {
  * ------v------*/
 
     toggleFullscreen() {
+        if (WebUtil.isInsideKasmVDI()) {
+             parent.postMessage({ action: 'fullscreen', value: 'Fullscreen clicked'}, '*' );
+             return;
+        }
         if (document.fullscreenElement || // alternative standard method
             document.mozFullScreenElement || // currently working methods
             document.webkitFullscreenElement ||
@@ -1830,6 +1864,7 @@ const UI = {
         UI.rfb.idleDisconnect = UI.getSetting('idle_disconnect');
         UI.rfb.videoQuality = UI.getSetting('video_quality');
         UI.rfb.enableWebP = UI.getSetting('enable_webp');
+        UI.rfb.enableHiDpi = UI.getSetting('enable_hidpi');
     },
 
 /* ------^-------
@@ -2088,6 +2123,7 @@ const UI = {
             UI.rfb.enableWebP = UI.getSetting('enable_webp');
             UI.rfb.videoQuality = parseInt(UI.getSetting('video_quality'));
             UI.rfb.enableQOI = enable_qoi;
+            UI.rfb.enableHiDpi = UI.getSetting('enable_hidpi');
 
             // Gracefully update settings server side
             UI.rfb.updateConnectionSettings();
@@ -2138,12 +2174,27 @@ const UI = {
 
     toggleWebRTC() {
         if (UI.rfb) {
+            if (typeof RTCPeerConnection === 'undefined') {
+                UI.showStatus('This browser does not support WebRTC UDP Data Channels.', 'warn', 5000, true);
+                return;
+            }
+
             if (UI.getSetting('enable_webrtc')) {
                 UI.rfb.enableWebRTC = true;
             } else {
                 UI.rfb.enableWebRTC = false;
             }
             UI.updateQuality();
+        }
+    },
+
+    enableHiDpi() {
+        if (UI.rfb) {
+            if (UI.getSetting('enable_hidpi')) {
+                UI.rfb.enableHiDpi = true;
+            } else {
+                UI.rfb.enableHiDpi = false;
+            }
         }
     },
 
@@ -2478,7 +2529,7 @@ const UI = {
 };
 
 // Set up translations
-const LINGUAS = ["cs", "de", "el", "es", "ja", "ko", "nl", "pl", "pt_BR", "ru", "sv", "tr", "zh_CN", "zh_TW"];
+const LINGUAS = ["af", "af_ZA", "am_ET", "am", "ar_AE", "ar_BH", "ar_DZ", "ar_EG", "ar_IN", "ar_IQ", "ar_JO", "ar_KW", "ar_LB", "ar_LY", "ar_MA", "ar_OM", "ar", "ar_QA", "ar_SA", "ar_SD", "ar_SY", "ar_TN", "ar_YE", "az_AZ", "az", "be_BY", "be", "bg_BG", "bg", "bn_BD", "bn_IN", "bn", "bs_BA", "bs", "ca_AD", "ca_ES", "ca_FR", "ca_IT", "ca", "cs_CZ", "cs", "cy_GB", "cy", "da_DK", "da", "de_AT", "de_BE", "de_CH", "de_DE", "de_LU", "de", "el", "es_AR", "es_BO", "es_CL", "es_CO", "es_CR", "es_CU", "es_DO", "es_EC", "es_ES", "es_GT", "es_HN", "es_MX", "es_NI", "es_PA", "es_PE", "es", "es_PR", "es_PY", "es_SV", "es_US", "es_UY", "es_VE", "et_EE", "et", "eu_ES", "eu", "fa_IR", "fa", "fi_FI", "fi", "fr_BE", "fr_CA", "fr_CH", "fr_FR", "fr_LU", "fr", "fy_DE", "fy_NL", "fy", "ga_IE", "ga", "gd_GB", "gd", "gl_ES", "gl", "gu_IN", "gu", "ha_NG", "ha", "he_IL", "he", "hi_IN", "hi", "hr_HR", "hr", "ht_HT", "ht", "hu_HU", "hu", "hy_AM", "hy", "id_ID", "id", "ig_NG", "ig", "is_IS", "is", "it_CH", "it_IT", "it", "ja_JP", "ja", "ka_GE", "ka", "kk_KZ", "kk", "km_KH", "km", "kn_IN", "kn", "ko_KR", "ko", "ku", "ku_TR", "ky_KG", "ky", "lb_LU", "lb", "lo_LA", "lo", "lt_LT", "lt", "lv_LV", "lv", "mg_MG", "mg", "mi_NZ", "mi", "mk_MK", "mk", "ml_IN", "ml", "mn_MN", "mn", "mr_IN", "mr", "ms_MY", "ms", "mt_MT", "mt", "my_MM", "my", "ne_NP", "ne", "nl_AW", "nl_BE", "nl_NL", "nl", "pa_IN", "pa_PK", "pa", "pl_PL", "pl", "ps_AF", "ps", "pt_BR", "pt", "pt_PT", "ro", "ro_RO", "ru", "ru_RU", "ru_UA", "sd_IN", "sd", "si_LK", "si", "sk", "sk_SK", "sl", "sl_SI", "so_DJ", "so_ET", "so_KE", "so", "so_SO", "sq_AL", "sq_MK", "sq", "st", "st_ZA", "sv_FI", "sv", "sv_SE", "sw_KE", "sw", "ta_IN", "ta_LK", "ta", "te_IN", "te", "tg", "tg_TJ", "th", "th_TH", "tl_PH", "tl", "tr_CY", "tr", "tr_TR", "tt", "tt_RU", "uk", "uk_UA", "ur_IN", "ur_PK", "ur", "uz", "uz_UZ", "vi", "vi_VN", "xh", "xh_ZA", "yi", "yi_US", "yo_NG", "yo", "zh_CN", "zh_TW", "zu", "zu_ZA"];
 l10n.setup(LINGUAS);
 if (l10n.language === "en" || l10n.dictionary !== undefined) {
     UI.prime();

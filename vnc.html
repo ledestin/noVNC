@@ -61,12 +61,6 @@
         } catch (e) {
             isInsideKasmVDI = true;
         }
-
-        if (!isInsideKasmVDI) {
-            window.addEventListener("load", function() {
-                document.getElementById("noVNC_connect_button").click();
-            });
-        }
     </script>
 
     <script type="module" crossorigin="use-credentials" src="app/ui.js"></script-->
@@ -99,7 +93,7 @@
                     <a href="https://www.kasmweb.com/kasmvnc" target="_blank"
                         alt="KasmVNC Learn More"
                         title="KasmVNC Learn More">
-                        <img src="app/images/icons/kasm_logo.png" />
+                        <img src="app/images/icons/kasm_logo.svg" />
                     </a>
                 </h1>
 
@@ -249,7 +243,7 @@
                                     <label class="switch">
                                         <input id="noVNC_setting_translate_shortcuts" type="checkbox" />
                                         <span class="slider round"></span>
-                                        <span class="slider-label">Translate keyboard shurtcuts</span>
+                                        <span class="slider-label">Translate keyboard shortcuts</span>
                                     </label>
                                 </li>
                                 <li>
@@ -296,12 +290,18 @@
                                     </label>
                                 </li>
                                 <li>
+                                    <label class="switch"><input id="noVNC_setting_enable_hidpi" type="checkbox" />
+                                        <span class="slider round"></span>
+                                        <span class="slider-label">Render Native Resolution</span>
+                                    </label>
+                                </li>
+                                <li class="noVNC_hidden">
                                     <label for="noVNC_setting_idle_disconnect">Idle Timeout:</label>
                                     <select id="noVNC_setting_idle_disconnect" name="vncIdleDisconnect">
-					<option value=10>10</option>
-					<option value=20>20</option>
-					<option value=30>30</option>
-					<option value=60>60</option>
+                                        <option value=10>10</option>
+                                        <option value=20>20</option>
+                                        <option value=30>30</option>
+                                        <option value=60>60</option>
                                     </select>
                                 </li>
                                 <li><hr></li>
@@ -347,13 +347,6 @@
                                             <li>
                                                 <label for="noVNC_setting_video_quality">Preset Modes:</label>
                                                 <select id="noVNC_setting_video_quality" name="vncVideoQuality">
-                                                    <option value=0>Static</option>
-                                                    <option value=1>Low</option>
-                                                    <option value=2>Medium</option>
-                                                    <option value=3>High</option>
-                                                    <option value=4>Extreme</option>
-                                                    <option value=5>Lossless</option>
-                                                    <option value=10>Custom</option>
                                                 </select>
                                             </li>
                                             <li>
