@@ -144,6 +144,7 @@ export default class RFB extends EventTargetMixin {
         this._forcedResolutionY = null;
         this._clipboardBinary = true;
         this._resendClipboardNextUserDrivenEvent = true;
+        this._wasClipboardEnteredByUser = false;
         this._useUdp = true;
         this._hiDpi = false;
         this._enableQOI = false;
@@ -890,7 +891,7 @@ export default class RFB extends EventTargetMixin {
         }
     }
 
-    clipboardPasteFrom(text) {
+    clipboardPasteFrom(text, wasTriggeredByUser = false) {
         if (this._rfbConnectionState !== 'connected' || this._viewOnly) { return; }
         if (!(typeof text === 'string' && text.length > 0)) { return; }
 
@@ -905,10 +906,11 @@ export default class RFB extends EventTargetMixin {
             this._clipHash = h;
         }
 
+        this._wasClipboardEnteredByUser = wasTriggeredByUser;
+
         let dataset = [];
         let mimes = [ 'text/plain' ];
         dataset.push(data);
-
         RFB.messages.sendBinaryClipboard(this._sock, dataset, mimes);
     }
 
@@ -1248,7 +1250,11 @@ export default class RFB extends EventTargetMixin {
     }
 
     _handleFocusChange(event) {
-        this._resendClipboardNextUserDrivenEvent = true;
+        if (!this._wasClipboardEnteredByUser) {
+            this._resendClipboardNextUserDrivenEvent = true;
+        }
+
+        this._wasClipboardEnteredByUser = false;
     }
 
     _focusCanvas(event) {
@@ -1268,7 +1274,7 @@ export default class RFB extends EventTargetMixin {
             this.pointerLock = true;
         }
 
-        if (this._resendClipboardNextUserDrivenEvent) {
+        if (this._resendClipboardNextUserDrivenEvent && !this._wasClipboardEnteredByUser) {
             this.checkLocalClipboard();
         }
 

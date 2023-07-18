@@ -1623,7 +1623,7 @@ const UI = {
             switch (event.data.action) {
                 case 'clipboardsnd':
                     if (UI.rfb && UI.rfb.clipboardUp) {
-                        UI.rfb.clipboardPasteFrom(event.data.value);
+                        UI.rfb.clipboardPasteFrom(event.data.value, true);
                     }
                     break;
                 case 'setvideoquality':
