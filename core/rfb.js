@@ -981,6 +981,10 @@ export default class RFB extends EventTargetMixin {
         RFB.messages.requestStats(this._sock);
     }
 
+    subscribeUnixRelay(name) {
+        RFB.messages.sendSubscribeUnixRelay(this._sock, name);
+    }
+
     // ===== PRIVATE METHODS =====
 
     _setLastActive() {
@@ -3243,8 +3247,7 @@ export default class RFB extends EventTargetMixin {
         if (this._sock.rQwait("UnixRelay data", len, 6 + namelen)) { return false; }
 
         const payload = this._sock.rQshiftBytes(len);
-
-        console.log("Received unix relay data, " + len + " bytes, " + payload);
+        this.onUnixRelayData && this.onUnixRelayData(name, payload);
     }
 
     _framebufferUpdate() {

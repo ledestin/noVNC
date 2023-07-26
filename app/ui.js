@@ -44,6 +44,7 @@ import Keyboard from "../core/input/keyboard.js";
 import RFB from "../core/rfb.js";
 import { MouseButtonMapper, XVNC_BUTTONS } from "../core/mousebuttonmapper.js";
 import * as WebUtil from "./webutil.js";
+import initializePrinterRelay from "./printer.js";
 
 const PAGE_TITLE = "KasmVNC";
 
@@ -1554,6 +1555,8 @@ const UI = {
 
         // Do this last because it can only be used on rendered elements
         UI.rfb.focus();
+
+        initializePrinterRelay(UI.rfb);
     },
 
     disconnectFinished(e) {
