@@ -1,6 +1,8 @@
-const PACKET_START = 0;
-const PACKET_CHUNK = 1;
-const PACKET_END = 2;
+const PACKETS = {
+    DOCUMENT_START: 0,
+    DOCUMENT_CHUNK: 1,
+    DOCUMENT_END: 2
+};
 
 const printDocument = async (data) => {
     const iframe = document.createElement("iframe");
@@ -23,20 +25,20 @@ export default (rfb) => {
     let downloadedSize = 0;
     let documentData = [];
 
-    rfb.onUnixRelayData = (name, payload) => {
+    const processRelayData = (payload) => {
         const array = Array.from(payload);
         const buffer = new Uint8Array(array).buffer;
         const packetData = new DataView(buffer);
         const packetId = packetData.getUint32(0, false);
 
         switch (packetId) {
-            case PACKET_START:
+            case PACKETS.DOCUMENT_START:
                 documentSize = packetData.getUint32(4, false);
                 downloadedSize = 0;
                 console.log(`Downloading document for printing (${documentSize}B)`);
                 break;
             
-            case PACKET_CHUNK:
+            case PACKETS.DOCUMENT_CHUNK:
                 let chunkSize = packetData.getUint32(4, false);
                 let chunkData = new Uint8Array(buffer, 8);
                 downloadedSize += chunkSize;
@@ -44,7 +46,7 @@ export default (rfb) => {
                 console.log(`Downloading document for printing (${downloadedSize}/${documentSize}B)`);
                 break;
             
-            case PACKET_END:
+            case PACKETS.DOCUMENT_END:
                 console.log(`Downloaded document for printing (${downloadedSize}/${documentSize}B)`);
                 printDocument(documentData);
                 downloadedSize = 0;
@@ -56,6 +58,6 @@ export default (rfb) => {
                 break;
         }
     }
-  
-    rfb.subscribeUnixRelay("printer");
+
+    rfb.subscribeUnixRelay("printer", processRelayData);
 }
