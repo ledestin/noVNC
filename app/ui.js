@@ -41,7 +41,6 @@ import { setCapture, getPointerEvent } from '../core/util/events.js';
 import KeyTable from "../core/input/keysym.js";
 import keysyms from "../core/input/keysymdef.js";
 import Keyboard from "../core/input/keyboard.js";
-import initializePrinterRelay from "../core/output/printer.js";
 import RFB from "../core/rfb.js";
 import { MouseButtonMapper, XVNC_BUTTONS } from "../core/mousebuttonmapper.js";
 import * as WebUtil from "./webutil.js";
@@ -1555,8 +1554,6 @@ const UI = {
 
         // Do this last because it can only be used on rendered elements
         UI.rfb.focus();
-
-        initializePrinterRelay(UI.rfb);
     },
 
     disconnectFinished(e) {

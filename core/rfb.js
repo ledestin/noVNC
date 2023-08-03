@@ -20,6 +20,7 @@ import Display from "./display.js";
 import Inflator from "./inflator.js";
 import Deflator from "./deflator.js";
 import Keyboard from "./input/keyboard.js";
+import initializePrinterRelay from "./output/printer.js";
 import GestureHandler from "./input/gesturehandler.js";
 import Cursor from "./util/cursor.js";
 import Websock from "./websock.js";
@@ -2546,6 +2547,10 @@ export default class RFB extends EventTargetMixin {
         RFB.messages.fbUpdateRequest(this._sock, false, 0, 0, this._fbWidth, this._fbHeight);
 
         this._updateConnectionState('connected');
+
+        //Register pipe based extensions
+        initializePrinterRelay(this);
+
         return true;
     }
 
