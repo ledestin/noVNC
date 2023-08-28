@@ -378,6 +378,23 @@ export default class Display {
         });
     }
 
+    decodedRect(x, y, width, height, arr, frame_id) {
+        /* The internal logic cannot handle empty images, so bail early */
+        if ((width === 0) || (height === 0)) {
+            return;
+        }
+        let videoFrame = new VideoFrame(arr, {format: 'I444', codedHeight: height, codedWidth: width, timestamp: 0})
+        this._asyncRenderQPush({
+            'type': 'videoframe',
+            'img': videoFrame,
+            'x': x,
+            'y': y,
+            'width': width,
+            'height': height,
+            'frame_id': frame_id
+        });
+    }
+
     transparentRect(x, y, width, height, img, frame_id) {
         /* The internal logic cannot handle empty images, so bail early */
         if ((width === 0) || (height === 0)) {
@@ -455,6 +472,19 @@ export default class Display {
         } catch (error) {
             Log.Error('Invalid image recieved.'); //KASM-2090
         }
+    }
+
+    drawVideoFrame(frame, x, y, w, h) {
+        try {                       
+            if (frame.width != w || frame.height != h) {
+                this._targetCtx.drawImage(frame, x, y, w, h);
+            } else {
+                this._targetCtx.drawImage(frame, x, y);
+            }
+            frame.close();
+        } catch (error) {
+            Log.Error('Invalid Video Frame recieved.'); //KASM-2090
+        }   
     }
 
     autoscale(containerWidth, containerHeight, scaleRatio=0) {
@@ -620,6 +650,9 @@ export default class Display {
                         break;
                     case 'img':
                         this.drawImage(a.img, a.x, a.y, a.width, a.height);
+                        break;
+                    case 'videoframe':
+                        this.drawVideoFrame(a.img, a.x, a.y, a.width, a.height);
                         break;
                     case 'transparent':
                         transparent_rects.push(a);
