@@ -295,9 +295,7 @@ async function init(input) {
   return wasm;
 }
 
-var arr;
 var path;
-
 async function run() {
   self.addEventListener('message', async function(evt) {
     if (evt.data.path) {
@@ -309,29 +307,27 @@ async function run() {
       })
     } else {
       try {
-        let length = evt.data.length;
-        let data = new Uint8Array(evt.data.sab.slice(0, length));
+        let image = evt.data.image;
+        let data = new Uint8Array(image);
         let resultData = decode_qoi(data);
-        if (!arr) {
-          arr = new Uint8Array(evt.data.sabR);
-        }
-        let lengthR = resultData.data.length;
-        arr.set(resultData.data);
         let img = {
           colorSpace: resultData.colorSpace,
           width: resultData.width,
           height: resultData.height
         };
+        var buff = new ArrayBuffer(resultData.data.length);
+        new Uint8Array(buff).set(new Uint8Array(resultData.data));
+        //let buff = resultData.data.buffer;
         self.postMessage({
           result: 0,
           img: img,
-          length: lengthR,
           width: evt.data.width,
           height: evt.data.height,
           x: evt.data.x,
           y: evt.data.y,
-          frame_id: evt.data.frame_id
-        });
+          frame_id: evt.data.frame_id,
+          data: buff
+        }, [buff]);
       } catch (err) {
         self.postMessage({
           result: 2,

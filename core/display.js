@@ -378,15 +378,14 @@ export default class Display {
         });
     }
 
-    decodedRect(x, y, width, height, arr, frame_id) {
+    async decodedRect(x, y, width, height, bitmap, frame_id) {
         /* The internal logic cannot handle empty images, so bail early */
         if ((width === 0) || (height === 0)) {
             return;
         }
-        let videoFrame = new VideoFrame(arr, {format: 'I444', codedHeight: height, codedWidth: width, timestamp: 0})
         this._asyncRenderQPush({
             'type': 'videoframe',
-            'img': videoFrame,
+            'img': bitmap,
             'x': x,
             'y': y,
             'width': width,
@@ -459,6 +458,7 @@ export default class Display {
             });
         } else {
             this._targetCtx.putImageData(arr, x, y);
+            arr = null;
         }
     }
 
@@ -469,6 +469,7 @@ export default class Display {
             } else {
                 this._targetCtx.drawImage(img, x, y);
             }
+            img = null;
         } catch (error) {
             Log.Error('Invalid image recieved.'); //KASM-2090
         }
@@ -481,7 +482,7 @@ export default class Display {
             } else {
                 this._targetCtx.drawImage(frame, x, y);
             }
-            frame.close();
+            frame = null;
         } catch (error) {
             Log.Error('Invalid Video Frame recieved.'); //KASM-2090
         }   

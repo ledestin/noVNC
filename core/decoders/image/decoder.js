@@ -11,30 +11,25 @@ async function run() {
       })
     } else {
       try {
-        let length = evt.data.length;
-        let data = new Uint8Array(evt.data.sab.slice(0, length));
         let imageDecoder = new ImageDecoder({
-            data: data,
+            data: evt.data.image,
             type: "image/" + evt.data.format,
         });
         let result = await imageDecoder.decode();
         if (!arr) {
           arr = new Uint8Array(evt.data.sabR);
         }
-        let buffer = new Uint8Array(result.image.allocationSize());
-        let copy = await result.image.copyTo(buffer);
-        let lengthR = buffer.length;
-        arr.set(buffer);
+        let bitmap = await createImageBitmap(result.image);
         imageDecoder.close();
         self.postMessage({
           result: 0,
-          length: lengthR,
           width: evt.data.width,
           height: evt.data.height,
           x: evt.data.x,
           y: evt.data.y,
-          frame_id: evt.data.frame_id
-        });
+          frame_id: evt.data.frame_id,
+          bitmap: bitmap
+        }, [bitmap]);
       } catch (err) {
         self.postMessage({
           result: 2,
