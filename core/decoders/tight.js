@@ -140,7 +140,7 @@ export default class TightDecoder {
             return false;
         }
 
-	if (this._workers) {
+	if (this._workersI) {
             let dataClone = new Uint8Array(data);
             let item = {x: x,y: y,width: width,height: height,data: dataClone,depth: depth, frame_id: frame_id, format: "jpeg"};
             if (this._imageRects.length < 1000) {
@@ -162,7 +162,7 @@ export default class TightDecoder {
             return false;
         }
 
-        if (this._workers) {
+        if (this._workersI) {
             let dataClone = new Uint8Array(data);
             let item = {x: x,y: y,width: width,height: height,data: dataClone,depth: depth, frame_id: frame_id, format: "webp"};
             if (this._imageRects.length < 1000) {
@@ -198,9 +198,9 @@ export default class TightDecoder {
     }
 
     _processRectI() {
-        while (this._availableWorkers.length > 0 && this._imageRects.length > 0) {
-            let i = this._availableWorkers.pop();
-            let worker = this._workers[i];
+        while (this._availableWorkersI.length > 0 && this._imageRects.length > 0) {
+            let i = this._availableWorkersI.pop();
+            let worker = this._workersI[i];
             let rect = this._imageRects.shift();
             let image = rect.data.buffer;
             worker.postMessage({
@@ -578,15 +578,15 @@ export default class TightDecoder {
     }
 
     async _disableDecodeWorkers() {
-        if (this._workers) {
-            this._availableWorkers = null;
+        if (this._workersI) {
+            this._availableWorkersI = null;
             this._imageRects = null;
             this._rectIlooping = null;
             for await (let i of Array.from(Array(this._threads).keys())) {
-                this._workers[i].terminate();
-                delete this._workers[i];
+                this._workersI[i].terminate();
+                delete this._workersI[i];
             }
-            this._workers = null;
+            this._workersI = null;
         }
     }
 
@@ -598,14 +598,14 @@ export default class TightDecoder {
         } else {
             this._threads = 8;
         }
-        this._workers = [];
-        this._availableWorkers = [];
+        this._workersI = [];
+        this._availableWorkersI = [];
         this._imageRects = [];
         this._rectIlooping = false;
         for (let i = 0; i < this._threads; i++) {
-            this._workers.push(new Worker("core/decoders/image/decoder.js"));
-            this._workers[i].onmessage = (evt) => {
-                this._availableWorkers.push(i);
+            this._workersI.push(new Worker("core/decoders/image/decoder.js"));
+            this._workersI[i].onmessage = (evt) => {
+                this._availableWorkersI.push(i);
                 switch(evt.data.result) {
                     case 0:
                         this._displayGlobal.decodedRect(
@@ -628,7 +628,7 @@ export default class TightDecoder {
             };
         }
         for (let i = 0; i < this._threads; i++) {
-            this._workers[i].postMessage({path:path});
+            this._workersI[i].postMessage({path:path});
         }
 
         return true;
