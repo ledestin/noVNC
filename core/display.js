@@ -378,14 +378,15 @@ export default class Display {
         });
     }
 
-    async decodedRect(x, y, width, height, bitmap, frame_id) {
+    decodedRect(x, y, width, height, videoframe, frame_id) {
+        
         /* The internal logic cannot handle empty images, so bail early */
         if ((width === 0) || (height === 0)) {
             return;
         }
         this._asyncRenderQPush({
             'type': 'videoframe',
-            'img': bitmap,
+            'img': videoframe,
             'x': x,
             'y': y,
             'width': width,
@@ -477,11 +478,7 @@ export default class Display {
 
     drawVideoFrame(frame, x, y, w, h) {
         try {                       
-            if (frame.width != w || frame.height != h) {
-                this._targetCtx.drawImage(frame, x, y, w, h);
-            } else {
-                this._targetCtx.drawImage(frame, x, y);
-            }
+            this._targetCtx.drawImage(frame, x, y);
             frame = null;
         } catch (error) {
             Log.Error('Invalid Video Frame recieved.'); //KASM-2090

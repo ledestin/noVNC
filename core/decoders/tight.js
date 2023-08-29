@@ -613,7 +613,7 @@ export default class TightDecoder {
                             evt.data.y,
                             evt.data.width,
                             evt.data.height,
-                            evt.data.bitmap,
+                            evt.data.videoframe,
                             evt.data.frame_id
                         );
                         this._processRectI();

@@ -13,13 +13,12 @@ async function run() {
       try {
         let imageDecoder = new ImageDecoder({
             data: evt.data.image,
-            type: "image/" + evt.data.format,
+            type: "image/" + evt.data.format
         });
         let result = await imageDecoder.decode();
         if (!arr) {
           arr = new Uint8Array(evt.data.sabR);
         }
-        let bitmap = await createImageBitmap(result.image);
         imageDecoder.close();
         self.postMessage({
           result: 0,
@@ -28,8 +27,8 @@ async function run() {
           x: evt.data.x,
           y: evt.data.y,
           frame_id: evt.data.frame_id,
-          bitmap: bitmap
-        }, [bitmap]);
+          videoframe: result.image
+        }, [result.image]);
       } catch (err) {
         self.postMessage({
           result: 2,
