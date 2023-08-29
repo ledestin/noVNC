@@ -15,8 +15,8 @@ async function run() {
     } else {
       try {
         let imageDecoder = new ImageDecoder({
-            data: evt.data.image,
-            type: "image/" + evt.data.format
+          data: evt.data.image,
+          type: "image/" + evt.data.format
         });
         let result = await imageDecoder.decode();
         imageDecoder.close();

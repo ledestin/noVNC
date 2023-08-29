@@ -566,7 +566,7 @@ export default class TightDecoder {
                         Log.Info("QOI Worker is now available.");
                         break;
                     case 2:
-                        Log.Info("Error on worker: " + evt.error);
+                        Log.Info("Error on worker: " + evt.data.error);
                         break;
                 }
             };
@@ -592,49 +592,57 @@ export default class TightDecoder {
     }
 
     _enableDecodeWorkers() {
-        let fullPath = window.location.pathname;
-        let path = fullPath.substring(0, fullPath.lastIndexOf('/')+1);
-        if ((window.navigator.hardwareConcurrency) && (window.navigator.hardwareConcurrency >= 4)) {
-            this._threads = 16;
-        } else {
-            this._threads = 8;
+	try {
+            function blank() {
+                //pass
+            }
+            let webcodectest = new VideoDecoder({output: blank, error: blank});
+            webcodectest.close();
+            let fullPath = window.location.pathname;
+            let path = fullPath.substring(0, fullPath.lastIndexOf('/')+1);
+            if ((window.navigator.hardwareConcurrency) && (window.navigator.hardwareConcurrency >= 4)) {
+                this._threads = 16;
+            } else {
+                this._threads = 8;
+            }
+            this._workersI = [];
+            this._availableWorkersI = [];
+            this._imageRects = [];
+            this._rectIlooping = false;
+            for (let i = 0; i < this._threads; i++) {
+                this._workersI.push(new Worker("core/decoders/image/decoder.js"));
+                this._workersI[i].onmessage = (evt) => {
+                    this._availableWorkersI.push(i);
+                    switch(evt.data.result) {
+                        case 0:
+                            this._displayGlobal.decodedRect(
+                                evt.data.x,
+                                evt.data.y,
+                                evt.data.width,
+                                evt.data.height,
+                                evt.data.videoframe,
+                                evt.data.frame_id
+                            );
+                            this._processRectI();
+                            break;
+                        case 1:
+                            Log.Info("Image Worker is now available.");
+                            break;
+                        case 2:
+                            Log.Info("Error on worker: " + evt.data.error);
+                            break;
+                    }
+                };
+            }
+            for (let i = 0; i < this._threads; i++) {
+                this._offscreenCanvas[i] = document.createElement('canvas').transferControlToOffscreen();
+                this._workersI[i].postMessage({path:path, canvas: this._offscreenCanvas[i]}, [this._offscreenCanvas[i]]);
+            }
+            return true;
+        } catch {
+            Log.Info("Unable to initialize threading with webcodecs");
+            return true;
         }
-        this._workersI = [];
-        this._availableWorkersI = [];
-        this._imageRects = [];
-        this._rectIlooping = false;
-        for (let i = 0; i < this._threads; i++) {
-            this._workersI.push(new Worker("core/decoders/image/decoder.js"));
-            this._workersI[i].onmessage = (evt) => {
-                this._availableWorkersI.push(i);
-                switch(evt.data.result) {
-                    case 0:
-                        this._displayGlobal.decodedRect(
-                            evt.data.x,
-                            evt.data.y,
-                            evt.data.width,
-                            evt.data.height,
-                            evt.data.videoframe,
-                            evt.data.frame_id
-                        );
-                        this._processRectI();
-                        break;
-                    case 1:
-                        Log.Info("Image Worker is now available.");
-                        break;
-                    case 2:
-                        console.log(evt);
-                        Log.Info("Error on worker: " + evt.error);
-                        break;
-                }
-            };
-        }
-        for (let i = 0; i < this._threads; i++) {
-            this._offscreenCanvas[i] = document.createElement('canvas').transferControlToOffscreen();
-            this._workersI[i].postMessage({path:path, canvas: this._offscreenCanvas[i]}, [this._offscreenCanvas[i]]);
-        }
-
-        return true;
     }
 
 }
