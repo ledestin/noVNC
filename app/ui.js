@@ -1428,6 +1428,9 @@ const UI = {
         if (UI.rfb.videoQuality === 5) {
             UI.rfb.enableQOI = true;
 	}
+        if (UI.rfb.videoQuality === 4) {
+            UI.rfb.enableThreading = true;
+        }
 
         //Only explicitly request permission to clipboard on browsers that support binary clipboard access
         if (supportsBinaryClipboard()) {
@@ -2008,6 +2011,7 @@ const UI = {
     updateQuality(fps) {
         let present_mode = parseInt(UI.getSetting('video_quality'));
         let enable_qoi = false;
+        let enable_threading = false;
 
         // video_quality preset values
         switch (present_mode) {
@@ -2042,6 +2046,7 @@ const UI = {
                 UI.forceSetting('video_out_time', 3);
                 break;
             case 4: //extreme
+                enable_threading = true;
                 fps = (fps && Number.isFinite(fps)) ? fps : 60;
                 UI.forceSetting('dynamic_quality_min', 8);
                 UI.forceSetting('dynamic_quality_max', 9);
@@ -2123,6 +2128,7 @@ const UI = {
             UI.rfb.enableWebP = UI.getSetting('enable_webp');
             UI.rfb.videoQuality = parseInt(UI.getSetting('video_quality'));
             UI.rfb.enableQOI = enable_qoi;
+            UI.rfb.enableThreading = enable_threading;
             UI.rfb.enableHiDpi = UI.getSetting('enable_hidpi');
 
             // Gracefully update settings server side
