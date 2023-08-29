@@ -22,6 +22,7 @@ export default class TightDecoder {
         this._enableQOI = false;
         this._enableThreading = false;
         this._displayGlobal = display;
+        this._offscreenCanvas = [];
 
         this._zlibs = [];
         for (let i = 0; i < 4; i++) {
@@ -622,13 +623,15 @@ export default class TightDecoder {
                         Log.Info("Image Worker is now available.");
                         break;
                     case 2:
+                        console.log(evt);
                         Log.Info("Error on worker: " + evt.error);
                         break;
                 }
             };
         }
         for (let i = 0; i < this._threads; i++) {
-            this._workersI[i].postMessage({path:path});
+            this._offscreenCanvas[i] = document.createElement('canvas').transferControlToOffscreen();
+            this._workersI[i].postMessage({path:path, canvas: this._offscreenCanvas[i]}, [this._offscreenCanvas[i]]);
         }
 
         return true;

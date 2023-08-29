@@ -384,9 +384,10 @@ export default class Display {
         if ((width === 0) || (height === 0)) {
             return;
         }
+        let img = new ImageData(new Uint8ClampedArray(videoframe), width, height);
         this._asyncRenderQPush({
-            'type': 'videoframe',
-            'img': videoframe,
+            'type': 'blitQ',
+            'data': img,
             'x': x,
             'y': y,
             'width': width,
@@ -474,15 +475,6 @@ export default class Display {
         } catch (error) {
             Log.Error('Invalid image recieved.'); //KASM-2090
         }
-    }
-
-    drawVideoFrame(frame, x, y, w, h) {
-        try {                       
-            this._targetCtx.drawImage(frame, x, y);
-            frame = null;
-        } catch (error) {
-            Log.Error('Invalid Video Frame recieved.'); //KASM-2090
-        }   
     }
 
     autoscale(containerWidth, containerHeight, scaleRatio=0) {
@@ -648,9 +640,6 @@ export default class Display {
                         break;
                     case 'img':
                         this.drawImage(a.img, a.x, a.y, a.width, a.height);
-                        break;
-                    case 'videoframe':
-                        this.drawVideoFrame(a.img, a.x, a.y, a.width, a.height);
                         break;
                     case 'transparent':
                         transparent_rects.push(a);
