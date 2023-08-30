@@ -23,6 +23,7 @@ export default class TightDecoder {
         this._enableThreading = false;
         this._displayGlobal = display;
         this._offscreenCanvas = [];
+	this._decoder = new TextDecoder();
 
         this._zlibs = [];
         for (let i = 0; i < 4; i++) {
@@ -165,7 +166,7 @@ export default class TightDecoder {
 
         if (this._workersI) {
             let dataClone = new Uint8Array(data);
-            let item = {x: x,y: y,width: width,height: height,data: dataClone,depth: depth, frame_id: frame_id, format: "webp"};
+            let item = {x: x, y: y, width: width, height: height,data: dataClone,depth: depth, frame_id: frame_id, format: "webp"};
             if (this._imageRects.length < 1000) {
                 this._imageRects.push(item);
                 this._processRectI();
@@ -615,12 +616,14 @@ export default class TightDecoder {
                     this._availableWorkersI.push(i);
                     switch(evt.data.result) {
                         case 0:
+                            let base64 = this._decoder.decode(evt.data.base64);
                             this._displayGlobal.decodedRect(
                                 evt.data.x,
                                 evt.data.y,
                                 evt.data.width,
                                 evt.data.height,
-                                evt.data.videoframe,
+                                "image/" + evt.data.format,
+                                base64,
                                 evt.data.frame_id
                             );
                             this._processRectI();

@@ -366,7 +366,6 @@ export default class Display {
         }
         const img = new Image();
         img.src = "data: " + mime + ";base64," + Base64.encode(arr);
-
         this._asyncRenderQPush({
             'type': 'img',
             'img': img,
@@ -378,16 +377,16 @@ export default class Display {
         });
     }
 
-    decodedRect(x, y, width, height, videoframe, frame_id) {
-        
+    decodedRect(x, y, width, height, mime, base64, frame_id) {
         /* The internal logic cannot handle empty images, so bail early */
         if ((width === 0) || (height === 0)) {
             return;
         }
-        let img = new ImageData(new Uint8ClampedArray(videoframe), width, height);
+        const img = new Image();
+        img.src = "data: " + mime + ";base64," + base64;
         this._asyncRenderQPush({
-            'type': 'blitQ',
-            'data': img,
+            'type': 'img',
+            'img': img,
             'x': x,
             'y': y,
             'width': width,
