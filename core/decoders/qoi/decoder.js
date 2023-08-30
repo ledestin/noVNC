@@ -317,7 +317,6 @@ async function run() {
         };
         var buff = new ArrayBuffer(resultData.data.length);
         new Uint8Array(buff).set(new Uint8Array(resultData.data));
-        //let buff = resultData.data.buffer;
         self.postMessage({
           result: 0,
           img: img,

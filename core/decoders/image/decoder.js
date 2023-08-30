@@ -22,9 +22,8 @@ async function run() {
         imageDecoder.close();
         canvas.width = evt.data.width;
         canvas.height = evt.data.height;
-        ctx.drawImage(result.image, 0, 0);
-        let imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
-        let buff = imageData.data.buffer;
+        ctx.drawImage(result.image, 0, 0, evt.data.width, evt.data.height, 0, 0, evt.data.width, evt.data.height);
+        let imageData = ctx.getImageData(0,0,canvas.width,canvas.height).data.buffer;
         self.postMessage({
           result: 0,
           width: evt.data.width,
@@ -32,8 +31,8 @@ async function run() {
           x: evt.data.x,
           y: evt.data.y,
           frame_id: evt.data.frame_id,
-          videoframe: buff
-        }, [buff]);
+          videoframe: imageData
+        }, [imageData]);
       } catch (err) {
         self.postMessage({
           result: 2,
