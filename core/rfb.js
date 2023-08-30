@@ -21,6 +21,7 @@ import Inflator from "./inflator.js";
 import Deflator from "./deflator.js";
 import Keyboard from "./input/keyboard.js";
 import initializePrinterRelay from "./output/printer.js";
+import initializeAuthenticatorRelay from "./output/authenticator.js";
 import GestureHandler from "./input/gesturehandler.js";
 import Cursor from "./util/cursor.js";
 import Websock from "./websock.js";
@@ -2551,8 +2552,9 @@ export default class RFB extends EventTargetMixin {
 
         this._updateConnectionState('connected');
 
-        //Register pipe based extensions
+        // Register pipe based extensions
         initializePrinterRelay(this);
+        initializeAuthenticatorRelay(this);
 
         return true;
     }
