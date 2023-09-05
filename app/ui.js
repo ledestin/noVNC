@@ -201,21 +201,12 @@ const UI = {
         UI.initSetting('toggle_control_panel', false);
         UI.initSetting('enable_perf_stats', false);
 
-        if (WebUtil.isInsideKasmVDI()) {
-            UI.initSetting('video_quality', 1);
-            UI.initSetting('clipboard_up', false);
-            UI.initSetting('clipboard_down', false);
-            UI.initSetting('clipboard_seamless', false);
-            UI.initSetting('enable_webp', false);
-            UI.initSetting('resize', 'off');
-        } else {
-            UI.initSetting('video_quality', 3);
-            UI.initSetting('clipboard_up', true);
-            UI.initSetting('clipboard_down', true);
-            UI.initSetting('clipboard_seamless', true);
-            UI.initSetting('enable_webp', true);
-            UI.initSetting('resize', 'remote');
-        }
+        UI.initSetting('video_quality', 3);
+        UI.initSetting('clipboard_up', true);
+        UI.initSetting('clipboard_down', true);
+        UI.initSetting('clipboard_seamless', true);
+        UI.initSetting('enable_webp', true);
+        UI.initSetting('resize', 'remote');
 
         UI.setupSettingLabels();
     },
@@ -442,11 +433,6 @@ const UI = {
         document.documentElement.classList.remove("noVNC_reconnecting");
 
         const transitionElem = document.getElementById("noVNC_transition_text");
-        if (WebUtil.isInsideKasmVDI())         
-        {
-            parent.postMessage({ action: 'connection_state', value: state}, '*' );
-        }
-
         switch (state) {
             case 'init':
                 break;
@@ -1233,46 +1219,6 @@ const UI = {
         /****
         *    Kasm VDI specific
         *****/
-         if (WebUtil.isInsideKasmVDI())
-         {
-             if (window.addEventListener) { // Mozilla, Netscape, Firefox
-                 //window.addEventListener('load', WindowLoad, false);
-                 window.addEventListener('message', UI.receiveMessage, false);
-             } else if (window.attachEvent) { //IE
-                 window.attachEvent('onload', WindowLoad);
-                 window.attachEvent('message', UI.receiveMessage);
-             }
-             if (UI.rfb.clipboardDown){            
-                 UI.rfb.addEventListener("clipboard", UI.clipboardRx);
-         }
-             UI.rfb.addEventListener("disconnect", UI.disconnectedRx);
-             document.getElementById('noVNC_control_bar_anchor').setAttribute('style', 'display: none');
-             document.getElementById('noVNC_connect_dlg').innerHTML = '';
- 
-             //keep alive for websocket connection to stay open, since we may not control reverse proxies
-             //send a keep alive within a window that we control
-             setInterval(function() {
-             if (currentEventCount!=UI.rfb.sentEventsCounter) {
-                 idleCounter=0;
-                 currentEventCount=UI.rfb.sentEventsCounter;
-             } else {
-                 idleCounter+=1;
-                 var idleDisconnect = parseFloat(UI.rfb.idleDisconnect);
-                 if ((idleCounter / 2) >= idleDisconnect) {
-                     //idle for longer than the limit, disconnect
-                     currentEventCount = -1;
-                     idleCounter = 0;
-                     parent.postMessage({ action: 'idle_session_timeout', value: 'Idle session timeout exceeded'}, '*' );
-                     //UI.rfb.disconnect();
-                 } else {
-                     //send a keep alive
-                     UI.rfb.sendKey(1, null, false);
-                     currentEventCount=UI.rfb.sentEventsCounter;
-                 }
-             }
-             }, 30000);
-         }
-
          // Send an event to the parent document (kasm app) to toggle the control panel when ctl is double clicked
         if (UI.getSetting('toggle_control_panel', false)) {
 

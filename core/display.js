@@ -9,6 +9,7 @@
 import * as Log from './util/logging.js';
 import Base64 from "./base64.js";
 import { toSigned32bit } from './util/int.js';
+import 'regenerator-runtime/runtime'
 
 export default class Display {
     constructor(target) {
@@ -19,7 +20,7 @@ export default class Display {
         this._onError = function (err){
           console.log(err);
         }
-        this._decoder = null;
+        this._extradata = null;
         this._renderQ = [];  // queue drawing actions for in-oder rendering
         this._safeToAdd = false;
         this._flushing = false;
@@ -360,57 +361,59 @@ export default class Display {
         }
     }
 
-    videoRect(arr) {
-var downloadBlob, downloadURL;
-downloadBlob = function(arr, fileName, mimeType) {
-  var blob, url;
-  blob = new Blob([arr], {
-    type: mimeType
-  });
-  url = window.URL.createObjectURL(blob);
-  downloadURL(url, fileName);
-  setTimeout(function() {
-    return window.URL.revokeObjectURL(url);
-  }, 1000);
-};
-
-downloadURL = function(data, fileName) {
-  var a;
-  a = document.createElement('a');
-  a.href = data;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.style = 'display: none';
-  a.click();
-  a.remove();
-};
-downloadBlob(arr, 'keyframe', 'application/octet-stream');
+    async videoRect(arr) {
         //this._drawCtx.drawImage(this._backbuffer,
         //                            oldX, oldY, w, h,
         //                            newX, newY, w, h);
-        //if (! this._decoder) {
-        //    this._decoder = new VideoDecoder({ 
-        //        output: this._processVideo,
-        //        error: this._onError
-        //    }); 
-        //    this._decoder.configure({
-        //        codec: "avc1.42E01E",
-        //        codedWidth: window.innerWidth,
-        //        codedHeight: window.innerHeight,
-        //        description: arr.subarray(0,34)
-        //    })
-        //}
-        //console.log(this._decoder);
-        //const init = {
-        //   type: 'key',
-        //   data: arr,
-        //   timestamp: 0,
-        //   duration: 16
-        //};
-        //let chunk = new EncodedVideoChunk(init);
-        //console.log(chunk);
-        //this._decoder.decode(chunk);
-        //this._frameCounter++
+        if (! this._extradata) {
+            let response = await fetch('/vnc/extradata');
+            this._extradata = await response.arrayBuffer();
+        }
+        let decoder = new VideoDecoder({ 
+            output: this._processVideo,
+            error: this._onError
+        }); 
+        decoder.configure({
+            codec: "avc1.42E01E",
+            codedWidth: window.innerWidth,
+            codedHeight: window.innerHeight,
+            description: this._extradata
+        })
+        const init = {
+           type: 'key',
+           data: arr,
+           timestamp: 0,
+           duration: 32000
+        };
+        let chunk = new EncodedVideoChunk(init);
+        decoder.decode(chunk);
+    }
+
+    videoRectdumper(arr) {
+        var downloadBlob, downloadURL;
+        downloadBlob = function(arr, fileName, mimeType) {
+            var blob, url;
+            blob = new Blob([arr], {
+                type: mimeType
+            });
+            url = window.URL.createObjectURL(blob);
+            downloadURL(url, fileName);
+            setTimeout(function() {
+                return window.URL.revokeObjectURL(url);
+            }, 1000);
+        };
+
+        downloadURL = function(data, fileName) {
+            var a;
+            a = document.createElement('a');
+            a.href = data;
+            a.download = fileName;
+            document.body.appendChild(a);
+                a.style = 'display: none';
+                a.click();
+                a.remove();
+        };
+        downloadBlob(arr, 'keyframe', 'application/octet-stream');
     }
 
     imageRect(x, y, width, height, mime, arr) {
