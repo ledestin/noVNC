@@ -47,10 +47,6 @@ export default class TightDecoder {
 
         let ret;
 
-        if (this._ctl !== 0x0C) {
-            display.restoreCanvas();
-        }
-
         if (this._ctl === 0x08) {
             ret = this._fillRect(x, y, width, height,
                                  sock, display, depth);
@@ -123,7 +119,6 @@ export default class TightDecoder {
         if (data === null) {
             return false;
         }
-
         display.videoRect(data);
 
         return true;

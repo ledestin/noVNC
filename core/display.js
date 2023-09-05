@@ -11,11 +11,16 @@ import Base64 from "./base64.js";
 import { toSigned32bit } from './util/int.js';
 
 export default class Display {
-    constructor(target, video) {
+    constructor(target) {
         this._drawCtx = null;
-
+        this._processVideo = function (frame){
+          console.log(frame);
+        }
+        this._onError = function (err){
+          console.log(err);
+        }
+        this._decoder = null;
         this._renderQ = [];  // queue drawing actions for in-oder rendering
-        this._videoQ = [];
         this._safeToAdd = false;
         this._flushing = false;
 
@@ -29,46 +34,11 @@ export default class Display {
 
         // The visible canvas
         this._target = target;
-        this._video = video;
 
         window.MediaSource = window.MediaSource || window.WebKitMediaSource;
         if (!window.MediaSource) {
             throw new Error("MediaSource not supported");
         }
-        this._mediaSource = new window.MediaSource();
-        this._video.src = URL.createObjectURL(this._mediaSource);
-	var playp = this._video.play()
-	if (playp !== undefined) {
-            playp.then(_ => {
-		console.log('video play started');
-	    }).catch(error => {
-		console.log('video play failed: ' + error);
-	    });
-	}
-	this._video.focus()
-
-        this._video.addEventListener('pause', function() {
-            console.info('video paused');
-	});
-
-        this._mediaSource.addEventListener('error', function(err) {
-            throw new Error("MSE: " + err.message);
-        });
-
-        this._mediaSource.addEventListener('sourceopen', function () {
-            console.info('mediaSource open');
-	    this._sourceBuffer = this._mediaSource.addSourceBuffer('video/mp4; codecs="avc1.42E01E"');
-	    this._sourceBuffer.mode = 'sequence';
-            this._mediaSource.duration = Infinity;
-            this._safeToAdd = true;
-
-            this._sourceBuffer.addEventListener('error', function(err) {
-                console.log("SourceBuffer: " + err.message);
-            });
-            this._sourceBuffer.addEventListener('updateend', function() {
-		this.addVideoBuffer();
-            }.bind(this));
-        }.bind(this));
 
         if (!this._target) {
             throw new Error("Target must be set");
@@ -238,11 +208,6 @@ export default class Display {
         this._fbWidth = width;
         this._fbHeight = height;
 
-        this._video.width = width;
-        this._video.style.width = width + 'px';
-        this._video.height = height;
-        this._video.style.height = height + 'px';
-
         const canvas = this._backbuffer;
         if (canvas.width !== width || canvas.height !== height) {
 
@@ -284,21 +249,6 @@ export default class Display {
         }
         if ((y + h) > this._damageBounds.bottom) {
             this._damageBounds.bottom = y + h;
-        }
-    }
-
-    restoreCanvas() {
-        // Hide the video, show the canvas, and copy the last video data to the canvas
-        if (this._video.style.display !== 'none') {
-            
-            this._video.style.display = 'none';
-            //this._video.pause();
-            //this._video.load();
-	    this.reinit_video();
-            this._renderQ.length = 0;
-
-            this._drawCtx.drawImage(this._video, 0, 0, this._fb_width, this._fb_height);
-            this.flip();
         }
     }
 
@@ -410,93 +360,57 @@ export default class Display {
         }
     }
 
-    addVideoBuffer() {
-        if (!this._videoQ.length) return console.error("segments empty");
-        if (this._sourceBuffer.updating) return console.error("buffer updating");
+    videoRect(arr) {
+var downloadBlob, downloadURL;
+downloadBlob = function(arr, fileName, mimeType) {
+  var blob, url;
+  blob = new Blob([arr], {
+    type: mimeType
+  });
+  url = window.URL.createObjectURL(blob);
+  downloadURL(url, fileName);
+  setTimeout(function() {
+    return window.URL.revokeObjectURL(url);
+  }, 1000);
+};
 
-        var segment = this._videoQ.shift();
-        //console.info("appendBuffer called");
-        this._sourceBuffer.appendBuffer(segment);
-    }
-
-    reinit_video() {
-        console.log('reinitializing video');
-
-        this._mediaSource = new window.MediaSource();
-        this._video.src = URL.createObjectURL(this._mediaSource);
-	this._video.load();
-        this._video.focus();
-
-        this._mediaSource.addEventListener('error', function(err) {
-            throw new Error("MSE: " + err.message);
-        });
-
-        this._mediaSource.addEventListener('sourceopen', function () {
-            console.info('mediaSource open');
-            this._sourceBuffer = this._mediaSource.addSourceBuffer('video/mp4; codecs="avc1.42E01E"');
-            this._sourceBuffer.mode = 'sequence';
-            this._mediaSource.duration = Infinity;
-            this._safeToAdd = true;
-
-            this._sourceBuffer.addEventListener('error', function(err) {
-                console.log("SourceBuffer: " + JSON.stringify(err));
-            });
-            this._sourceBuffer.addEventListener('updateend', function() {
-                this.addVideoBuffer();
-            }.bind(this));
-
-	    var playp = this._video.play()
-            if (playp !== undefined) {
-                playp.then(_ => {
-                    console.log('video play started');
-                }).catch(error => {
-                    console.log('video play failed: ' + error);
-                });
-            } 
-        }.bind(this));
-    }
-
-    videoRect(arr) { 
-	if (this._video.style.display == 'none') {
-                        
-	    console.log('Startv times: ' + this._video.duration + ' ' + this._video.currentTime + ' ' + this._video.seekable.length);
-	    console.log('Startv ready states: ' + this._video.readyState + ' ' + this._mediaSource.readyState);
-            console.log('MediaSource State: ' + this._mediaSource.readyState);
-            console.log('Startv sourebuf: ' + this._sourceBuffer.mode + ' ' + this._sourceBuffer.updating + ' ' + this._sourceBuffer.buffered.length);
-            if (this._video.readyState == 2 && this._sourceBuffer.buffered.length == 1) {
-                console.log('Removing staled data in buffer');
-		//this._sourceBuffer.remove(this._sourceBuffer.buffered.start(0), this._sourceBuffer.buffered.end(0));
-	    }
-	    
-            //if (this._video.readyState > 0) {
-            if (this._mediaSource.readyState == 'closed') {
-		//console.log('Resuming video');
-                //var playp = this._video.play()
-                //if (playp !== undefined) {
-                //    playp.then(_ => {
-                //        console.log('video play started');
-                //    }).catch(error => {
-                //        console.log('video play failed: ' + error);
-                //    });
-                //}
-		//console.log('Startv times: ' + this._video.duration + ' ' + this._video.currentTime + ' ' + this._video.seekable.end(0));
-		//this._video.currentTime = this._video.seekable.end(0);
-		//this._video.load();
-		//this.reinit_video();
-            }
-
-            this._video.style.display = 'block';
-	    //clear the canvas, transparent to video element behind
-	    this._target.width = this._target.width;
-        }
-
-        //if (this._sourceBuffer.mode == 'segments') {
-        //    this._sourceBuffer.mode = 'sequence';
-        //} 
-
-	this._videoQ.push(arr);
-	this.addVideoBuffer();
-	
+downloadURL = function(data, fileName) {
+  var a;
+  a = document.createElement('a');
+  a.href = data;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.style = 'display: none';
+  a.click();
+  a.remove();
+};
+downloadBlob(arr, 'keyframe', 'application/octet-stream');
+        //this._drawCtx.drawImage(this._backbuffer,
+        //                            oldX, oldY, w, h,
+        //                            newX, newY, w, h);
+        //if (! this._decoder) {
+        //    this._decoder = new VideoDecoder({ 
+        //        output: this._processVideo,
+        //        error: this._onError
+        //    }); 
+        //    this._decoder.configure({
+        //        codec: "avc1.42E01E",
+        //        codedWidth: window.innerWidth,
+        //        codedHeight: window.innerHeight,
+        //        description: arr.subarray(0,34)
+        //    })
+        //}
+        //console.log(this._decoder);
+        //const init = {
+        //   type: 'key',
+        //   data: arr,
+        //   timestamp: 0,
+        //   duration: 16
+        //};
+        //let chunk = new EncodedVideoChunk(init);
+        //console.log(chunk);
+        //this._decoder.decode(chunk);
+        //this._frameCounter++
     }
 
     imageRect(x, y, width, height, mime, arr) {
