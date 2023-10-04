@@ -756,6 +756,7 @@ export default class RFB extends EventTargetMixin {
                     }
                 }
             }
+
             if (minX !== 0 || minY !== 0) {
                 throw new Error("Screen plan invalid, improper coordinates provided.");
             }
@@ -828,6 +829,7 @@ export default class RFB extends EventTargetMixin {
             this._sock.off('error');
             this._sock.off('message');
             this._sock.off('open');
+            this._primaryDisplayDisconnect();
         } else {
             this._updateConnectionState('disconnecting');
             this._unregisterSecondaryDisplay();
@@ -1611,7 +1613,7 @@ export default class RFB extends EventTargetMixin {
             this._disconnTimer = null;
 
             // make sure we don't get a double event
-            if (this._rfbConnectionState !== 'proxied') {
+            if (this._isPrimaryDisplay) {
                 this._sock.off('close');
             }
         }
@@ -1737,9 +1739,21 @@ export default class RFB extends EventTargetMixin {
                         this._updateCursor(...event.data.args);
                     }
                     break;
+                case 'disconnect':
+                    this.disconnect();
             }
         }
         
+    }
+
+    _primaryDisplayDisconnect() {
+        if (this._isPrimaryDisplay) {
+            let message = {
+                eventType: 'disconnect',
+                screenID: this._display.screenId
+            }
+            this._controlChannel.postMessage(message);
+        }
     }
 
     _unregisterSecondaryDisplay() {
@@ -3937,7 +3951,10 @@ export default class RFB extends EventTargetMixin {
         };
 
         this._refreshCursor();
-        this._proxyRFBMessage('updateCursor', [ rgba, hotx, hoty, w, h ]);
+
+        if (this._isPrimaryDisplay) {
+            this._proxyRFBMessage('updateCursor', [ rgba, hotx, hoty, w, h ]);
+        }
     }
 
     _shouldShowDotCursor() {

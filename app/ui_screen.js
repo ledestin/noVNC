@@ -21,7 +21,7 @@ const UI = {
             } 
         });
 
-
+        UI.updateLogging();
         UI.addDefaultHandlers();
         UI.updateVisualState('disconnected');
     },
@@ -242,6 +242,10 @@ const UI = {
         WebUtil.writeSetting("mouseButtonMapper", mouseButtonMapper.dump());
 
         return mouseButtonMapper;
+    },
+
+    updateLogging() {
+        WebUtil.initLogging(UI.getSetting('logging'));
     },
 }
 

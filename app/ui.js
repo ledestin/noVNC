@@ -2478,7 +2478,7 @@ const UI = {
         let screenPlan = UI.rfb.getScreenPlan();
 
         // Now make adjustments to the screen plan, this is just an example
-        screenPlan.screens[1].y = 100;
+        // screenPlan.screens[1].y = 100;
         
         // Finally apply the screen plan
         UI.rfb.applyScreenPlan(screenPlan);

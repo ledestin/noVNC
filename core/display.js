@@ -11,7 +11,7 @@ import * as Log from './util/logging.js';
 import Base64 from "./base64.js";
 import { toSigned32bit } from './util/int.js';
 import { isWindows } from './util/browser.js';
-import { uuidv4 } from './util/strings.js';
+import { uuidv4, getCharCodes } from './util/strings.js';
 
 export default class Display {
     constructor(target, isPrimaryDisplay) {
@@ -31,8 +31,7 @@ export default class Display {
         this._asyncFrameQueue = [];
         this._maxAsyncFrameQueue = 3;
         this._clearAsyncQueue();
-
-        this._flushing = false;
+        this._syncFrameQueue = [];
 
         // the full frame buffer (logical canvas) size
         this._fbWidth = 0;
@@ -81,6 +80,8 @@ export default class Display {
 
         // ===== PROPERTIES =====
 
+        this._primaryRectCnt = 0;
+        this._secondaryRectCnt = 0;
         this._maxScreens = 4;
         this._scale = 1.0;
         this._clipViewport = false;
@@ -110,12 +111,12 @@ export default class Display {
 
         this.onflush = () => {  }; // A flush request has finished
 
-        // Use requestAnimationFrame to write to canvas, to match display refresh rate
-        this._animationFrameID = window.requestAnimationFrame( () => { this._pushAsyncFrame(); });
-
         if (!this._isPrimaryDisplay) {
             this._screens[0].channel = new BroadcastChannel(`screen_${this._screenID}_channel`);
             this._screens[0].channel.addEventListener('message', this._handleSecondaryDisplayMessage.bind(this));
+            //this._animationFrameID = window.requestAnimationFrame( () => { this._pushSyncRects(); });
+        } else {
+            //this._animationFrameID = window.requestAnimationFrame( () => { this._pushAsyncFrame(); });
         }
 
         Log.Debug("<< Display.constructor");
@@ -294,7 +295,8 @@ export default class Display {
             //new_screen.channel.message = this._handleSecondaryDisplayMessage().bind(this);
 
             this._screens.push(new_screen);
-            new_screen.channel.postMessage({ eventType: "registered", screenIndex: new_screen.screenIndex });
+            let serializedRect = this._serializeRect({ type: 'registered', screenIndex: new_screen.screenIndex });
+            new_screen.channel.postMessage(serializedRect);
         } else {
             throw new Error("Cannot add a screen to a secondary display.")
         }
@@ -316,7 +318,9 @@ export default class Display {
             for (let i=1; i<this._screens.length; i++) {
                 this.screens[i].screenIndex = i;
                 if (i > 0) {
-                    this._screens[i].channel.postMessage({ eventType: "registered", screenIndex: i });
+                    let serializedRect = this._serializeRect({ type: 'registered', screenIndex: i });
+                    this._screens[i].channel.postMessage(serializedRect);
+                    
                 }
             }
             return removed;
@@ -463,6 +467,7 @@ export default class Display {
             'rect_cnt': rect_cnt,
             'screenLocations': [ { screenIndex: 0, x: 0, y: 0 } ]
         });
+        //window.requestAnimationFrame( () => { this._pushAsyncFrame(); });
     }
 
     /*
@@ -481,11 +486,9 @@ export default class Display {
     *   UDP cannot block and thus no need to notify the caller when complete.
     */
     flush(onflush_message=true) {
-        //force oldest frame to render
-        this._asyncFrameComplete(0, true);
-
+        window.requestAnimationFrame( () => { this._pushAsyncFrame(); });
         if (onflush_message)
-            this._flushing = true;
+            this.onflush();
     }
     
     /*
@@ -501,7 +504,7 @@ export default class Display {
     */
     dispose() {
         clearInterval(this._frameStatsInterval);
-        cancelAnimationFrame(this._animationFrameID);
+        //cancelAnimationFrame(this._animationFrameID);
         this.clear();
     }
 
@@ -519,6 +522,7 @@ export default class Display {
             this._processRectScreens(rect);
             this._asyncRenderQPush(rect);
         } else {
+            //console.log(`Fill Rect x: ${x}, y: ${y}, h: ${height}, w: ${width}`)
             this._setFillColor(color);
             this._targetCtx.fillRect(x, y, width, height);
         }
@@ -574,22 +578,24 @@ export default class Display {
         }
         this._processRectScreens(rect);
 
+        let src = "data: " + mime + ";base64," + Base64.encode(arr);
+
         if (rect.inPrimary) {
-            const img = new Image();
-            img.src = "data: " + mime + ";base64," + Base64.encode(arr);
+            let img = new Image();
+            img.src = src;
             rect.img = img;
         } else {
-            rect.type = "_img";
+            rect.type = "_img"; //this will skip loading images if not in this screen
         }
         if (rect.inSecondary) {
             rect.mime = mime;
-            rect.src = "data: " + mime + ";base64," + Base64.encode(arr);
+            rect.data = arr;
         }
 
         this._asyncRenderQPush(rect);
     }
 
-    transparentRect(x, y, width, height, img, frame_id) {
+    transparentRect(x, y, width, height, data, frame_id) {
         /* The internal logic cannot handle empty images, so bail early */
         if ((width === 0) || (height === 0)) {
             return;
@@ -607,14 +613,14 @@ export default class Display {
         this._processRectScreens(rect);
 
         if (rect.inPrimary) {
-            let imageBmpPromise = createImageBitmap(img);
+            let imageBmpPromise = createImageBitmap(data);
             imageBmpPromise.then( function(img) {
                 rect.img = img;
                 rect.img.complete = true;
             }.bind(rect) );
         } 
         if (rect.inSecondary) {
-            rect.arr = img;
+            rect.data = data;
         }
 
         this._asyncRenderQPush(rect);
@@ -646,6 +652,149 @@ export default class Display {
             let img = new ImageData(data, width, height);
             this._targetCtx.putImageData(img, x, y);
         }
+    }
+
+    _deserializeRect(serializedData) {
+        const arr = Base64.decode(serializedData);
+        let type = arr[0];
+        let mime_len = 0;
+
+        let rect = {
+            'type': null,
+            'frame_id': 0
+        }
+
+        //This code is a bit redundant, but offers fewer logic branches
+        switch (type) {
+            case 0: //copy
+                rect.type = 'copy';
+                rect.oldX = parseInt(arr[10] + (arr[9] << 8));
+                rect.oldY = parseInt(arr[12] + (arr[11] << 8));
+                rect.x = parseInt(arr[2] + (arr[1] << 8));
+                rect.y = parseInt(arr[4] + (arr[3] << 8));
+                rect.width = parseInt(arr[6] + (arr[5] << 8));
+                rect.height = parseInt(arr[8] + (arr[7] << 8));
+                break;
+            case 1: //fill
+                rect.type = 'fill';
+                rect.color = [ arr[9], arr[10], arr[11] ];
+                rect.x = parseInt(arr[2] + (arr[1] << 8));
+                rect.y = parseInt(arr[4] + (arr[3] << 8));
+                rect.width = parseInt(arr[6] + (arr[5] << 8));
+                rect.height = parseInt(arr[8] + (arr[7] << 8));
+                break;
+            case 2: //blit
+                rect.type = 'blit';
+                rect.x = parseInt(arr[2] + (arr[1] << 8));
+                rect.y = parseInt(arr[4] + (arr[3] << 8));
+                rect.width = parseInt(arr[6] + (arr[5] << 8));
+                rect.height = parseInt(arr[8] + (arr[7] << 8));
+                rect.data = arr.slice(13 + mime_len);
+                break;
+            case 3: //blitQ
+                rect.type = 'blitQ';
+                rect.x = parseInt(arr[2] + (arr[1] << 8));
+                rect.y = parseInt(arr[4] + (arr[3] << 8));
+                rect.width = parseInt(arr[6] + (arr[5] << 8));
+                rect.height = parseInt(arr[8] + (arr[7] << 8));
+                rect.data = arr.slice(13 + mime_len);
+                break;
+            case 4: //image
+                rect.type = 'img';
+                mime_len = arr[9];
+                let mime_arr = arr.slice(13, mime_len + 13);
+                rect.mime = String.fromCharCode(...mime_arr);
+                rect.x = parseInt(arr[2] + (arr[1] << 8));
+                rect.y = parseInt(arr[4] + (arr[3] << 8));
+                rect.width = parseInt(arr[6] + (arr[5] << 8));
+                rect.height = parseInt(arr[8] + (arr[7] << 8));
+                rect.data = arr.slice(13 + mime_len);
+                break;
+            case 5: //transparent
+                rect.type = 'img';
+                rect.x = parseInt(arr[2] + (arr[1] << 8));
+                rect.y = parseInt(arr[4] + (arr[3] << 8));
+                rect.width = parseInt(arr[6] + (arr[5] << 8));
+                rect.height = parseInt(arr[8] + (arr[7] << 8));
+                rect.data = arr.slice(13 + mime_len);
+                break;
+            case 250: //flip
+                rect.type = 'flip';
+                break;
+            case 251: //registration display index
+                rect.type = 'registered';
+                rect.screenIndex = parseInt(arr[1]);
+        }
+
+        return rect;
+    }
+
+    _serializeRect(rect, screenLocation) {
+        /*
+        A serialized Rect is a base64 encoded byte array
+        The first 13 elements of the byte array are fixed fields
+        The rest is for data
+        The image type of rect also has a mime type. Element index 13 contains the mime type length, followed by the mime type ascii chars, followed by the image data
+        */
+        const mime_len = rect.mime ? rect.mime.length : 0;
+        const data_len = rect.data ? rect.data.length : 0;
+        
+        let rect_arr = new Uint8Array(13 + mime_len + data_len);
+        rect_arr[0] = 0;
+        if (screenLocation) {
+            rect_arr[1] = screenLocation.x >> 8;
+            rect_arr[2] = screenLocation.x;
+            rect_arr[3] = screenLocation.y >> 8;
+            rect_arr[4] = screenLocation.y;
+            rect_arr[5] = rect.width >> 8;
+            rect_arr[6] = rect.width;
+            rect_arr[7] = rect.height >> 8;
+            rect_arr[8] = rect.height;
+        }
+
+        switch (rect.type) {
+            case 'copy':
+                rect_arr[0] = 0;
+                rect_arr[9] = screenLocation.oldX >> 8;
+                rect_arr[10] = screenLocation.oldX;
+                rect_arr[11] = screenLocation.oldY >> 8;
+                rect_arr[12] = screenLocation.oldY;
+                break;
+            case 'fill':
+                rect_arr[0] = 1;
+                rect_arr[9] = rect.color[0];
+                rect_arr[10] = rect.color[1];
+                rect_arr[11] = rect.color[2];
+                break;
+            case 'blit':
+                rect_arr[0] = 2;
+                break;
+            case 'blitQ':
+                rect_arr[0] = 3;
+                break;
+            case 'img':
+            case '_img':
+                rect_arr[0] = 4;
+                let mime_arr = getCharCodes(rect.mime);
+                rect_arr[9] = mime_len;
+                rect_arr.set(mime_arr, 13);
+                break;
+            case 'transparent':
+                rect_arr[0] = 5;
+                break;
+            case 'flip':
+                rect_arr[0] = 250;
+                break;
+            case 'registered':
+                rect_arr[0] = 251;
+                rect_arr[1] = rect.screenIndex;
+        }
+
+        if (rect.data) {
+            rect_arr.set(rect.data, 13 + mime_len);
+        }
+
+        return Base64.encode(rect_arr);
     }
 
     blitQoi(x, y, width, height, arr, offset, frame_id, fromQueue) {
@@ -701,59 +850,45 @@ export default class Display {
 
     // ===== PRIVATE METHODS =====
 
-    _handleSecondaryDisplayMessage(event) {
-        if (!this._isPrimaryDisplay && event.data) {
-            
-            switch (event.data.eventType) {
-                case 'rect':
-                    let rect = event.data.rect;
-                    //overwrite screen locations when received on the secondary display
-                    rect.screenLocations = [ rect.screenLocations[event.data.screenLocationIndex] ]
-                    rect.screenLocations[0].screenIndex = 0;
-                    let pos = rect.screenLocations[0];
-                    //console.log(`${rect.type} Rect: x: ${pos.x}, y: ${pos.y}, w: ${rect.width}, h: ${rect.height}`)
-                    switch (rect.type) {
-                        case 'copy':
-                            //this.copyImage(rect.oldX, rect.oldY, pos.x, pos.y, rect.width, rect.height, rect.frame_id, true);
-                            this._asyncRenderQPush(rect);
-                            break;
-                        case 'fill':
-                            this._asyncRenderQPush(rect);
-                            //this.fillRect(pos.x, pos.y, rect.width, rect.height, rect.color, rect.frame_id, true);
-                            break;
-                        case 'blit':
-                            this._asyncRenderQPush(rect);
-                            //this.blitImage(pos.x, pos.y, rect.width, rect.height, rect.data, 0, rect.frame_id, true);
-                            break;
-                        case 'blitQ':
-                            
-                            this._asyncRenderQPush(rect);
-                            //this.blitQoi(pos.x, pos.y, rect.width, rect.height, rect.data, 0, rect.frame_id, true);
-                            break;
-                        case 'img':
-                        case '_img':
-                            rect.img = new Image();
-                            rect.img.src = rect.src;
-                            rect.type = 'img';
-                            this._asyncRenderQPush(rect);
-                            break;
-                        case 'transparent':
-                            let imageBmpPromise = createImageBitmap(rect.arr);
-                            imageBmpPromise.then(function(rect, img) {
-                                rect.img.complete = true;
-                            }).bind(this, rect);
-                            this._asyncRenderQPush(rect);
-                            break;
-                    }
-                    break;
-                case 'frameComplete':
-                        this.flip(event.data.frameId, event.data.rectCnt);
 
-                        break;
+
+    _handleSecondaryDisplayMessage(event) {
+        if (!this._isPrimaryDisplay) {
+
+            let rect = this._deserializeRect(event.data);
+            
+            switch (rect.type) {
+                case 'copy':
+                case 'fill':
+                case 'blit':
+                case 'blitQ':
+                    //this._syncFrameQueue.push(rect);
+                    this._directDraw(rect);
+                    break;
+                case 'img':
+                case '_img':
+                    rect.img = new Image();
+                    rect.img.src = "data: " + rect.mime + ";base64," + Base64.encode(rect.data);
+                    rect.type = 'img';
+                    //this._syncFrameQueue.push(rect);
+                    this._directDraw(rect);
+                    break;
+                case 'transparent':
+                    let imageBmpPromise = createImageBitmap(rect.data);
+                    imageBmpPromise.then(function(rect, img) {
+                        rect.img = img;
+                        rect.img.complete = true;
+                    }).bind(this, rect);
+                    //this._syncFrameQueue.push(rect);
+                    this._directDraw(rect);
+                    break;
+                case 'flip':
+                    //window.requestAnimationFrame( () => { this._pushSyncRects(); });
+                    break;
                 case 'registered':
                         if (!this._isPrimaryDisplay) {
-                            this._screens[0].screenIndex = event.data.screenIndex;
-                            Log.Info(`Screen with index (${event.data.screenIndex}) successfully registered with the primary display.`);
+                            this._screens[0].screenIndex = rect.screenIndex;
+                            Log.Info(`Screen with index (${rect.screenIndex}) successfully registered with the primary display.`);
                         }
                     break;
             }
@@ -847,9 +982,13 @@ export default class Display {
                 }
             }
             while (currentFrameRectIx < this._asyncFrameQueue[frameIx][2].length) {   
-                if (this._asyncFrameQueue[frameIx][2][currentFrameRectIx].type == 'img' && !this._asyncFrameQueue[frameIx][2][currentFrameRectIx].img.complete) {
-                    this._asyncFrameQueue[frameIx][2][currentFrameRectIx].type = 'skip';
-                    this._droppedRects++;
+                if (this._asyncFrameQueue[frameIx][2][currentFrameRectIx].type == 'img') {
+                    if (this._asyncFrameQueue[frameIx][2][currentFrameRectIx].img && !this._asyncFrameQueue[frameIx][2][currentFrameRectIx].img.complete) {
+                        this._asyncFrameQueue[frameIx][2][currentFrameRectIx].type = 'skip';
+                        this._droppedRects++;
+                    } else {
+                        Log.Warn(`Oh snap, an image rect without an image: ${this._asyncFrameQueue[frameIx][2][currentFrameRectIx]}`)
+                    }
                 }
                 currentFrameRectIx++;
             }
@@ -868,6 +1007,91 @@ export default class Display {
         }
         this._asyncFrameQueue[frameIx][4] = currentFrameRectIx;
         this._asyncFrameQueue[frameIx][3] = true;
+
+        window.requestAnimationFrame( () => { this._pushAsyncFrame(); });
+    }
+
+    _directDraw(a) {
+        switch (a.type) {
+            case 'copy':
+                this.copyImage(a.oldX, a.oldY, a.x, a.y, a.width, a.height, a.frame_id, true);
+                break;
+            case 'fill':
+                this.fillRect(a.x, a.y, a.width, a.height, a.color, a.frame_id, true);
+                break;
+            case 'blit':
+                this.blitImage(a.x, a.y, a.width, a.height, a.data, 0, a.frame_id, true);
+                break;
+            case 'blitQ':
+                this.blitQoi(a.x, a.y, a.width, a.height, a.data, 0, a.frame_id, true);
+                break;
+            case 'img':
+                break;
+                if (a.img.complete) {
+                    this.drawImage(a.img, a.x, a.y, a.width, a.height);
+                }
+                break;
+            case 'transparent':
+                if (a.img.complete) {
+                    this.drawImage(a.img, a.x, a.y, a.width, a.height);
+                }
+                break;
+            default:
+                Log.Warn(`Unknown rect type: ${rect}`);
+        }
+    }
+
+    _pushSyncRects() {
+        whileLoop:
+        while (this._syncFrameQueue.length > 0) {
+            const a = this._syncFrameQueue[0];
+            switch (a.type) {
+                case 'copy':
+                    this.copyImage(a.oldX, a.oldY, a.x, a.y, a.width, a.height, a.frame_id, true);
+                    break;
+                case 'fill':
+                    this.fillRect(a.x, a.y, a.width, a.height, a.color, a.frame_id, true);
+                    break;
+                case 'blit':
+                    this.blitImage(a.x, a.y, a.width, a.height, a.data, 0, a.frame_id, true);
+                    break;
+                case 'blitQ':
+                    this.blitQoi(a.x, a.y, a.width, a.height, a.data, 0, a.frame_id, true);
+                    break;
+                case 'img':
+                    break;
+                    if (a.img.complete) {
+                        this.drawImage(a.img, a.x, a.y, a.width, a.height);
+                    } else {
+                        if (this._syncFrameQueue.length > 1000) {
+                            this._syncFrameQueue.shift();
+                            this._droppedRects++;
+                        } else {
+                            break whileLoop;
+                        }
+                    }
+                    break;
+                case 'transparent':
+                    if (a.img.complete) {
+                        this.drawImage(a.img, a.x, a.y, a.width, a.height);
+                    } else {
+                        if (this._syncFrameQueue.length > 1000) {
+                            this._syncFrameQueue.shift();
+                            this._droppedRects++;
+                        } else {
+                            break whileLoop;
+                        }
+                    }
+                    break;
+                default:
+                    Log.Warn(`Unknown rect type: ${rect}`);
+            }
+            this._syncFrameQueue.shift();
+        }
+
+        if (this._syncFrameQueue.length > 0) {
+            window.requestAnimationFrame( () => { this._pushSyncRects(); });
+        }
     }
 
     /*
@@ -875,8 +1099,8 @@ export default class Display {
     */
     _pushAsyncFrame(force=false) {
         if (this._asyncFrameQueue[0][3] || force) {
-            let frame = this._asyncFrameQueue[0][2];
-            let frameId = this._asyncFrameQueue.shift()[0];
+            this._lastProcessedFrame = this._asyncFrameQueue.shift();
+            let rects = this._lastProcessedFrame[2];
             if (this._asyncFrameQueue.length < this._maxAsyncFrameQueue) {
                 this._asyncFrameQueue.push([ 0, 0, [], false, 0, 0 ]);
             }
@@ -885,9 +1109,9 @@ export default class Display {
             let secondaryScreenRects = 0;
             
             //render the selected frame
-            for (let i = 0; i < frame.length; i++) {
+            for (let i = 0; i < rects.length; i++) {
                 
-                const a = frame[i];
+                const a = rects[i];
 
                 for (let sI = 0; sI < a.screenLocations.length; sI++) {
                     let screenLocation = a.screenLocations[sI];
@@ -918,7 +1142,20 @@ export default class Display {
                         }
                         if (a.type !== 'flip') {
                             secondaryScreenRects++;
-                            this._screens[screenLocation.screenIndex].channel.postMessage({ eventType: 'rect', rect: a, screenLocationIndex: sI });
+                            if (screenLocation.screenIndex < this._screens.length) {
+                                switch (a.type) {
+                                    case 'copy':
+                                    case 'fill':
+                                    case 'blit':
+                                        let serializedRect = this._serializeRect(a, screenLocation);
+                                        this._screens[screenLocation.screenIndex].channel.postMessage(serializedRect); 
+                                        break;
+                                }
+                                
+                            } else {
+                                Log.Warn(`Rect targeting a screen index (${screenLocation.screenIndex}) that does not exist.`)
+                            }
+                            
                         }
                     }
                 }
@@ -937,23 +1174,20 @@ export default class Display {
                         }
                     } else {
                         secondaryScreenRects++;
-                        this._screens[screenLocation.screenIndex].channel.postMessage({ eventType: 'rect', rect: a, screenLocationIndex: sI });
+                        let serializedRect = this._serializeRect(a, screenLocation);
+                        this._screens[screenLocation.screenIndex].channel.postMessage(serializedRect);
                     }
                 }
             }
 
             if (secondaryScreenRects > 0) {
                 for (let i = 1; i < this.screens.length; i++) {
-                    this._screens[i].channel.postMessage({ eventType: 'frameComplete', frameId: frameId, rectCnt: secondaryScreenRects });
+                    let serializedRect = this._serializeRect({ type: 'flip' })
+                    this._screens[i].channel.postMessage(serializedRect);
                 }
             }
 
             this._flipCnt += 1;
-
-            if (this._flushing) {
-                this._flushing = false;
-                this.onflush();
-            }
         } else if (this._asyncFrameQueue[0][1] > 0 && this._asyncFrameQueue[0][1] == this._asyncFrameQueue[0][2].length) {
             //how many times has _pushAsyncFrame been called when the frame had all rects but has not been drawn
             this._asyncFrameQueue[0][5] += 1;
@@ -963,9 +1197,11 @@ export default class Display {
             }
         }
 
+        /*
         if (!force) {
             window.requestAnimationFrame( () => { this._pushAsyncFrame(); });
         }
+        */
     }
 
     _processRectScreens(rect) {
@@ -994,8 +1230,10 @@ export default class Display {
                 indexes.push(screenPosition);
                 if (i == 0) {
                     rect.inPrimary = true;
+                    this._primaryRectCnt++;
                 } else {
                     rect.inSecondary = true;
+                    this._secondaryRectCnt++;
                 }
             }
         }
