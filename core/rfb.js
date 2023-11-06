@@ -46,7 +46,6 @@ const DEFAULT_BACKGROUND = 'rgb(40, 40, 40)';
 var _videoQuality =  2;
 var _enableWebP = false;
 var _enableQOI = false;
-var _enableThreading = false;
 
 // Minimum wait (ms) between two mouse moves
 const MOUSE_MOVE_DELAY = 17; 
@@ -148,7 +147,6 @@ export default class RFB extends EventTargetMixin {
         this._useUdp = true;
         this._hiDpi = false;
         this._enableQOI = false;
-        this._enableThreading = false;
         this.TransitConnectionStates = {
             Tcp: Symbol("tcp"),
             Udp: Symbol("udp"),
@@ -507,21 +505,6 @@ export default class RFB extends EventTargetMixin {
             this._pendingApplyEncodingChanges = true;
         }
         
-    }
-
-    get enableThreading() { return this._enableThreading; }
-    set enableThreading(enabled) {
-        if(this._enableThreading === enabled) {
-            return;
-        }
-
-        this._decoders[encodings.encodingTight].enableThreading = enabled;
-        this._enableThreading = this._decoders[encodings.encodingTight].enableThreading
-
-        if (this._enableThreading === enabled) {
-            this._pendingApplyEncodingChanges = true;
-        }
-
     }
 
     get antiAliasing() { return this._display.antiAliasing; }
@@ -3154,7 +3137,7 @@ export default class RFB extends EventTargetMixin {
         
         switch (frame.encoding) {
             case encodings.pseudoEncodingLastRect:
-                this._display.flip(frame_id, frame.x + 1); //Last Rect message, first 16 bytes contain rect count
+                //this._display.flip(frame_id, frame.x + 1); //Last Rect message, first 16 bytes contain rect count
                 if (this._display.pending())
                     this._display.flush(false);
                 break;
@@ -3292,7 +3275,6 @@ export default class RFB extends EventTargetMixin {
             // to avoid building up an excessive queue
             if (this._display.pending()) {
                 this._flushing = true;
-                this._display.flush();
                 return false;
             }
         }
@@ -3321,7 +3303,7 @@ export default class RFB extends EventTargetMixin {
         }
 
         if (this._FBU.rect_total > 1) {
-            this._display.flip(this._FBU.frame_id, this._FBU.rect_total);
+            //this._display.flip(this._FBU.frame_id, this._FBU.rect_total);
         }
         
         return true;  // We finished this FBU
