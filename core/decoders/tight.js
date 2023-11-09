@@ -125,8 +125,9 @@ export default class TightDecoder {
         if (data === null) {
             return false;
         }
-        let dataClone = new Uint8Array(data);
-        display.imageRect(x, y, width, height, "image/jpeg", dataClone, frame_id);
+        let blob = new Blob([data]);
+        let stream = blob.stream();
+        display.imageRect(x, y, width, height, "image/jpeg", stream, frame_id);
         return true;
     }
 
@@ -135,8 +136,9 @@ export default class TightDecoder {
         if (data === null) {
             return false;
         }
-
-        display.imageRect(x, y, width, height, "image/webp", data, frame_id);
+        let blob = new Blob([data]);
+        let stream = blob.stream();
+        display.imageRect(x, y, width, height, "image/webp", stream, frame_id);
         return true;
     }
 

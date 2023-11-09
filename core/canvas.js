@@ -1,5 +1,5 @@
 // Globals
-var maxFramesQ = 1;
+var maxFramesQ = 3;
 var canvas;
 var ctx;
 var oldFill;
