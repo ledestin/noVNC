@@ -1,5 +1,5 @@
 // Globals
-var maxFramesQ = 3;
+var maxFramesQ = 5;
 var canvas;
 var ctx;
 var oldFill;
@@ -8,6 +8,7 @@ var putQ = {};
 var copyQ = {};
 var fillQ = {};
 var frames = new Set();
+var seenFrames = new Set();
 var full = false;
 var frameCount = 0;
 var prevFrames;
@@ -31,6 +32,13 @@ function processQ() {
   if (framesQ.length) {
     // Always process the oldest frame
     let currentFrame = framesQ[0];
+    // Make sure we have seen the frame to process before
+    if (seenFrames.has(currentFrame)) {
+      seenFrames.delete(currentFrame);
+      requestAnimationFrame(processQ);
+      return;
+    }
+    // Remove frame from list and bump processed frames count
     frames.delete(currentFrame);
     if (prevFrame !== currentFrame) {
       frameCount++
@@ -144,7 +152,8 @@ self.addEventListener('message', function(evt) {
         break;
       // Add canvas color drawing to the queue
       case 'fill':
-        frames.add(evt.data.frame_id)
+        frames.add(evt.data.frame_id);
+        seenFrames.add(evt.data.frame_id);
         let color = evt.data.color;
         let fill = 'rgb(' + color[0] + ',' + color[1] + ',' + color[2] + ')';
         let fillRect = {
@@ -161,7 +170,8 @@ self.addEventListener('message', function(evt) {
         break;
       // Put raw image data into the queue
       case 'put':
-        frames.add(evt.data.frame_id)
+        frames.add(evt.data.frame_id);
+        seenFrames.add(evt.data.frame_id);
         let width = evt.data.width;
         let height = evt.data.height;
         let data = new Uint8ClampedArray(evt.data.buffer,evt.data.byteOffset + evt.data.offset, width * height * 4);
@@ -179,7 +189,8 @@ self.addEventListener('message', function(evt) {
         break;
       // Decode an image and add it to queue
       case 'img':
-        frames.add(evt.data.frame_id)
+        frames.add(evt.data.frame_id);
+        seenFrames.add(evt.data.frame_id);
         let imageDecoder = new ImageDecoder({
           data: evt.data.buffer,
           type: evt.data.mime
@@ -200,7 +211,8 @@ self.addEventListener('message', function(evt) {
         break;
       // Add videoframe to queue
       case 'videoframe':
-        frames.add(evt.data.frame_id)
+        frames.add(evt.data.frame_id);
+        seenFrames.add(evt.data.frame_id);
         let videoRect = {
           videoFrame: evt.data.video_frame,
           x: evt.data.x,
@@ -214,7 +226,8 @@ self.addEventListener('message', function(evt) {
         break;
       // Add copy operations to the queue
       case 'copy':
-        frames.add(evt.data.frame_id)
+        frames.add(evt.data.frame_id);
+        seenFrames.add(evt.data.frame_id);
         let copyRect = {
           oldX: evt.data.oldX,
           oldY: evt.data.oldY,

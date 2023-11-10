@@ -1252,7 +1252,6 @@ export default class RFB extends EventTargetMixin {
                 throw e;
             }
         }
-        this._display.dispose();
         clearTimeout(this._resizeTimeout);
         clearTimeout(this._mouseMoveTimer);
         Log.Debug("<< RFB.disconnect");
