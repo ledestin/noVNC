@@ -9,6 +9,9 @@ var copyQ = {};
 var fillQ = {};
 var frames = new Set();
 var full = false;
+var frameCount = 0;
+var prevFrames;
+var prevFrame;
 
 // Main logic loop
 function processQ() {
@@ -29,6 +32,10 @@ function processQ() {
     // Always process the oldest frame
     let currentFrame = framesQ[0];
     frames.delete(currentFrame);
+    if (prevFrame !== currentFrame) {
+      frameCount++
+    }
+    prevFrame = currentFrame;
     // Process all canvas operation types
     renderDraws(currentFrame);
     renderPuts(currentFrame);
@@ -39,6 +46,22 @@ function processQ() {
   requestAnimationFrame(processQ);
 }
 processQ();
+
+// FPS counter
+function fps(state) {
+  prevFrames = frameCount;
+  setInterval(
+    function() {
+      let fps = frameCount - prevFrames;
+      prevFrames = frameCount;
+      self.postMessage({
+        type: 'performance',
+        message: {fps: fps}
+      })
+    },
+  1000);
+}
+fps(true);
 
 // Render Draw operations
 function renderDraws(frame) {
@@ -174,6 +197,20 @@ self.addEventListener('message', function(evt) {
           imageDecoder.close();
           evt = null;
         });
+        break;
+      // Add videoframe to queue
+      case 'videoframe':
+        frames.add(evt.data.frame_id)
+        let videoRect = {
+          videoFrame: evt.data.video_frame,
+          x: evt.data.x,
+          y: evt.data.y
+        }
+        if (! drawQ.hasOwnProperty(evt.data.frame_id)) {
+          drawQ[evt.data.frame_id] = [];
+        }
+        drawQ[evt.data.frame_id].push(videoRect);
+        evt = null;
         break;
       // Add copy operations to the queue
       case 'copy':

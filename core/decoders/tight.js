@@ -20,6 +20,7 @@ export default class TightDecoder {
         this._palette = new Uint8Array(1024);  // 256 * 4 (max palette size * max bytes-per-pixel)
         this._len = 0;
         this._enableQOI = false;
+        this._enableThreading = false;
         this._displayGlobal = display;
 	this._decoder = new TextDecoder();
 
@@ -31,7 +32,21 @@ export default class TightDecoder {
     }
 
     // ===== PROPERTIES =====
-    
+ 
+    get enableThreading() { return this._enableThreading; }
+    set enableThreading(enabled) {
+        if(this._enableThreading === enabled) {
+            return;
+        }
+
+        if (enabled) {
+            this._enableThreading = this._enableDecodeWorkers();
+        } else {
+            this._enableThreading = false;
+            this._disableDecodeWorkers();
+        }
+    }
+
     get enableQOI() { return this._enableQOI; }
     set enableQOI(enabled) { 
         if(this._enableQOI === enabled) {
@@ -127,7 +142,18 @@ export default class TightDecoder {
         }
         let blob = new Blob([data]);
         let stream = blob.stream();
-        display.imageRect(x, y, width, height, "image/jpeg", stream, frame_id);
+	if (this._workers) {
+            let item = {x: x,y: y,width: width,height: height,stream: stream,depth: depth, frame_id: frame_id, format: "image/jpeg"};
+            if (this._imageRects.length < 1000) {
+                this._imageRects.push(item);
+                this._processRectI();
+            } else {
+                Log.Warn("Image queue exceeded limit.");
+                this._imageRects.splice(0, 500);
+            }
+        } else {
+            display.imageRect(x, y, width, height, "image/jpeg", stream, frame_id);
+        }
         return true;
     }
 
@@ -138,7 +164,18 @@ export default class TightDecoder {
         }
         let blob = new Blob([data]);
         let stream = blob.stream();
-        display.imageRect(x, y, width, height, "image/webp", stream, frame_id);
+        if (this._workers) {
+            let item = {x: x,y: y,width: width,height: height,stream: stream,depth: depth, frame_id: frame_id, format: "image/webp"};
+            if (this._imageRects.length < 1000) {
+                this._imageRects.push(item);
+                this._processRectI();
+            } else {
+                Log.Warn("Image queue exceeded limit.");
+                this._imageRects.splice(0, 500);
+            }
+        } else {
+            display.imageRect(x, y, width, height, "image/webp", stream, frame_id);
+        }
         return true;
     }
 
@@ -158,6 +195,23 @@ export default class TightDecoder {
                 frame_id: rect.frame_id,
                 image: image
             }, [image]);
+        }
+    }
+
+    _processRectI() {
+        while (this._availableWorkers.length > 0 && this._imageRects.length > 0) {
+            let i = this._availableWorkers.pop();
+            let worker = this._workers[i];
+            let rect = this._imageRects.shift();
+            worker.postMessage({
+                x: rect.x,
+                y: rect.y,
+                width: rect.width,
+                height: rect.height,
+                frame_id: rect.frame_id,
+                format: rect.format,
+                stream: rect.stream
+            }, [rect.stream]);
         }
     }
 
@@ -509,6 +563,63 @@ export default class TightDecoder {
                         break;
                     case 2:
                         Log.Info("Error on worker: " + evt.data.error);
+                        break;
+                }
+            };
+        }
+        for (let i = 0; i < this._threads; i++) {
+            this._workers[i].postMessage({path:path});
+        }
+
+        return true;
+    }
+
+    async _disableDecodeWorkers() {
+        if (this._workers) {
+            this._availableWorkers = null;
+            this._imageRects = null;
+            this._rectIlooping = null;
+            for await (let i of Array.from(Array(this._threads).keys())) {
+                this._workers[i].terminate();
+                delete this._workers[i];
+            }
+            this._workers = null;
+        }
+    }
+
+    _enableDecodeWorkers() {
+        let fullPath = window.location.pathname;
+        let path = fullPath.substring(0, fullPath.lastIndexOf('/')+1);
+        if ((window.navigator.hardwareConcurrency) && (window.navigator.hardwareConcurrency >= 4)) {
+            this._threads = 16;
+        } else {
+            this._threads = 8;
+        }
+        this._workers = [];
+        this._availableWorkers = [];
+        this._imageRects = [];
+        this._rectIlooping = false;
+        for (let i = 0; i < this._threads; i++) {
+            this._workers.push(new Worker("core/decoders/image/decoder.js"));
+            this._workers[i].onmessage = (evt) => {
+                this._availableWorkers.push(i);
+                switch(evt.data.result) {
+                    case 0:
+                        this._displayGlobal.decodedRect(
+                            evt.data.x,
+                            evt.data.y,
+                            evt.data.width,
+                            evt.data.height,
+                            evt.data.videoFrame,
+                            evt.data.frame_id
+                        );
+                        this._processRectI();
+                        break;
+                    case 1:
+                        Log.Info("Image Worker is now available.");
+                        break;
+                    case 2:
+                        Log.Info("Error on worker: " + evt.error);
                         break;
                 }
             };

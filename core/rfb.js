@@ -46,6 +46,7 @@ const DEFAULT_BACKGROUND = 'rgb(40, 40, 40)';
 var _videoQuality =  2;
 var _enableWebP = false;
 var _enableQOI = false;
+var _enableThreading = false;
 
 // Minimum wait (ms) between two mouse moves
 const MOUSE_MOVE_DELAY = 17; 
@@ -147,6 +148,7 @@ export default class RFB extends EventTargetMixin {
         this._useUdp = true;
         this._hiDpi = false;
         this._enableQOI = false;
+        this._enableThreading = false;
         this.TransitConnectionStates = {
             Tcp: Symbol("tcp"),
             Udp: Symbol("udp"),
@@ -505,6 +507,21 @@ export default class RFB extends EventTargetMixin {
             this._pendingApplyEncodingChanges = true;
         }
         
+    }
+
+    get enableThreading() { return this._enableThreading; }
+    set enableThreading(enabled) {
+        if(this._enableThreading === enabled) {
+            return;
+        }
+
+        this._decoders[encodings.encodingTight].enableThreading = enabled;
+        this._enableThreading = this._decoders[encodings.encodingTight].enableThreading
+
+        if (this._enableThreading === enabled) {
+            this._pendingApplyEncodingChanges = true;
+        }
+
     }
 
     get antiAliasing() { return this._display.antiAliasing; }

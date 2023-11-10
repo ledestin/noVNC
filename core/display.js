@@ -38,6 +38,10 @@ export default class Display {
                     }
                     this._full = evt.data.message;
                     break;
+                case 'performance':
+                    // Update performance metrics
+                    this._fps = evt.data.message.fps;
+                    break;
             }
         };
 
@@ -62,24 +66,6 @@ export default class Display {
         
 	// Transfer canvas to worker
 	this._canvasWorker.postMessage({canvas: this._offscreen}, [this._offscreen]);
-
-        // performance metrics
-        this._flipCnt = 0;
-        this._lastFlip = Date.now();
-        this._droppedFrames = 0;
-        this._droppedRects = 0;
-        this._forcedFrameCnt = 0;
-        this._missingFlipRect = 0;
-        this._lateFlipRect = 0;
-        this._frameStatsInterval = setInterval(function() {
-            let delta = Date.now() - this._lastFlip;
-            if (delta > 0) {
-                this._fps = (this._flipCnt / (delta / 1000)).toFixed(2);
-            }
-            Log.Info('Dropped Frames: ' + this._droppedFrames + ' Dropped Rects: ' + this._droppedRects + ' Forced Frames: ' + this._forcedFrameCnt + ' Missing Flips: ' + this._missingFlipRect + ' Late Flips: ' + this._lateFlipRect);
-            this._flipCnt = 0;
-            this._lastFlip = Date.now();
-        }.bind(this), 5000);
 
         // ===== PROPERTIES =====
 
@@ -291,6 +277,18 @@ export default class Display {
         arr = null;
     }
 
+    decodedRect(x, y, width, height, videoFrame, frame_id) {
+        this._canvasWorker.postMessage({
+            type: 'videoframe',
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+            video_frame: videoFrame,
+            frame_id: frame_id
+        }, [videoFrame]);
+    }
+
     transparentRect(x, y, width, height, img, frame_id) {
         /* The internal logic cannot handle empty images, so bail early */
         if ((width === 0) || (height === 0)) {
@@ -329,8 +327,6 @@ export default class Display {
             byteOffset: arr.byteOffset,
             frame_id: frame_id
         }, [buffer]);
-        arr = null;
-        buffer = null;
     }
 
     blitImageQ(x, y, width, height, arr, offset, frame_id, fromQueue) {
@@ -345,7 +341,6 @@ export default class Display {
             byteOffset: arr.byteOffset,
             frame_id: frame_id
         }, [arr]);
-        arr = null;
     }
 
     autoscale(containerWidth, containerHeight, scaleRatio=0) {
