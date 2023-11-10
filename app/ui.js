@@ -687,7 +687,7 @@ const UI = {
                 if (UI.rfb !== undefined) {
                     UI.rfb.requestBottleneckStats();
                 }
-            }  , 5000);
+            }  , 1000);
         } else {
             document.getElementById("noVNC_connection_stats").style.visibility = "hidden";
             UI.statsInterval = null;
