@@ -1,5 +1,5 @@
 // Globals
-var maxFramesQ = 5;
+var maxFramesQ = 3;
 var canvas;
 var ctx;
 var oldFill;
@@ -34,7 +34,7 @@ function processQ() {
     let currentFrame = framesQ[0];
     // Make sure we have seen the frame to process before
     if (seenFrames.has(currentFrame)) {
-      seenFrames.delete(currentFrame);
+      seenFrames.clear();
       requestAnimationFrame(processQ);
       return;
     }
