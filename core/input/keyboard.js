@@ -43,6 +43,8 @@ export default class Keyboard {
         this._enableIME = false;
         this._imeHold = false;
         this._imeInProgress = false;
+        this._imeKeyDelayInMs = 15;
+        this._imeKeyQueue = [];
         this._lastKeyboardInput = null;
         this._defaultKeyboardInputLen = 100;
         this._keyboardInputReset();
@@ -163,6 +165,26 @@ export default class Keyboard {
         }
     }
 
+    async _sendIMEKey(keysym, code) {
+        this._imeKeyQueue.push({ keysym, code });
+
+        if (!this._sendQueuedImeKey) {
+            this._sendQueuedImeKey = () => {
+                const event = this._imeKeyQueue.shift();
+                this._sendKeyEvent(event.keysym, event.code, true);
+                this._sendKeyEvent(event.keysym, event.code, false);
+
+                if (this._imeKeyQueue.length > 0) {
+                    setTimeout(this._sendQueuedImeKey, this._imeKeyDelayInMs);
+                } else {
+                    this._sendQueuedImeKey = null;
+                }
+            }
+
+            setTimeout(this._sendQueuedImeKey, this._imeKeyDelayInMs);
+        }
+    }
+
     _handleInput(e) {
         //input event occurs only when keyup keydown events don't prevent default
         //IME events will make this happen, for example 
@@ -188,14 +210,12 @@ export default class Keyboard {
 
             //send backspaces if needed
             for (let bs = oldValue.length - diff_start; bs > 0; bs--) {
-                this._sendKeyEvent(KeyTable.XK_BackSpace, "Backspace", true);
-                this._sendKeyEvent(KeyTable.XK_BackSpace, "Backspace", false);
-            } 
+                this._sendIMEKey(KeyTable.XK_BackSpace, "Backspace");
+            }
             
             //send new keys
-            for (let i = diff_start; i < newValue.length; i++) {
-                this._sendKeyEvent(keysyms.lookup(newValue.charCodeAt(i)), 'Unidentified', true);
-                this._sendKeyEvent(keysyms.lookup(newValue.charCodeAt(i)), 'Unidentified', false);
+            for (let i = diff_start, n = newValue.length; i < n; i++) {
+                this._sendIMEKey(keysyms.lookup(newValue.charCodeAt(i)), 'Unidentified');
             }
             this._lastKeyboardInput = newValue;
         } else {
