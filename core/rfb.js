@@ -208,6 +208,7 @@ export default class RFB extends EventTargetMixin {
         this._accumulatedWheelDeltaY = 0;
         this.mouseButtonMapper = null;
         this._mouseLastScreenIndex = -1;
+        this._sendLeftClickonNextMove = false;
 
         // Gesture state
         this._gestureLastTapTime = null;
@@ -1389,6 +1390,13 @@ export default class RFB extends EventTargetMixin {
 
     _handleFocusChange(event) {
         this._resendClipboardNextUserDrivenEvent = true;
+
+        if (event.type == 'focus' && event.currentTarget instanceof Window) {
+            // added for multi-montiors
+            // as user moves from window to window, focus change loses a click, this marks the next mouse
+            // move to simulate a left click. We wait for the next mouse move because we need accurate x,y coords
+            this._sendLeftClickonNextMove = true;
+        }
     }
 
     _focusCanvas(event) {
@@ -1681,6 +1689,7 @@ export default class RFB extends EventTargetMixin {
         if (this._isPrimaryDisplay) {
             // Secondary to Primary screen message
             let size;
+            let coords;
             switch (event.data.eventType) {
                 case 'register':
                     this._display.addScreen(event.data.screenID, event.data.width, event.data.height, event.data.pixelRatio, event.data.containerHeight, event.data.containerWidth);
@@ -1715,12 +1724,36 @@ export default class RFB extends EventTargetMixin {
                         Log.Info(`Secondary monitor (${event.data.screenID}) not found.`);
                     }
                     break;
-                case 'pointerEvent':
-                    let coords = this._display.getServerRelativeCoordinates(event.data.screenIndex, event.data.args[0], event.data.args[1]);
+                case 'mousemove':
+                    coords = this._display.getServerRelativeCoordinates(event.data.screenIndex, event.data.args[0], event.data.args[1]);
                     this._mouseLastScreenIndex = event.data.screenIndex;
-                    event.data.args[0] = coords[0];
-                    event.data.args[1] = coords[1];
-                    RFB.messages.pointerEvent(this._sock, ...event.data.args);
+                    this._mousePos = { 'x': coords[0], 'y': coords[1] };
+                    if (this._mouseButtonMask !== 0 && !event.data.args[2]) {
+                        this._mouseButtonMask = 0;
+                    }
+                    //Log.Debug('Mouse move Proxied: x-' + coords[0] + ', y-' + coords[1] + ' buttons-' + event.data.args[2]);
+                    RFB.messages.pointerEvent(this._sock, this._mousePos.x, this._mousePos.y, this._mouseButtonMask);
+
+                    //simulate a left click
+                    if (event.data.args[3]) {
+                        this._mouseButtonMask |= 0x1;
+                        RFB.messages.pointerEvent(this._sock, this._mousePos.x, this._mousePos.y, this._mouseButtonMask);
+                        this._mouseButtonMask &= ~0x1;
+                        RFB.messages.pointerEvent(this._sock, this._mousePos.x, this._mousePos.y, this._mouseButtonMask);
+                        Log.Debug('Simulated Left Click on secondary display.');
+                    }
+                    break;
+                case 'mousedown':
+                    coords = this._display.getServerRelativeCoordinates(event.data.screenIndex, event.data.args[0], event.data.args[1]);
+                    this._mouseLastScreenIndex = event.data.screenIndex;
+                    //Log.Debug('Mouse Down Proxied: x-' + coords[0] + ', y-' + coords[1] + ' buttons-' + event.data.args[2]);
+                    this._handleMouseButton(coords[0], coords[1], true, event.data.args[2]);
+                    break;
+                case 'mouseup':
+                    coords = this._display.getServerRelativeCoordinates(event.data.screenIndex, event.data.args[0], event.data.args[1]);
+                    this._mouseLastScreenIndex = event.data.screenIndex;
+                    //Log.Debug('Mouse Up Proxied: x-' + coords[0] + ', y-' + coords[1] + ' buttons-' + event.data.args[2]);
+                    this._handleMouseButton(coords[0], coords[1], false, event.data.args[2]);
                     break;
                 case 'keyEvent':
                     RFB.messages.keyEvent(this._sock, ...event.data.args);
@@ -1937,19 +1970,33 @@ export default class RFB extends EventTargetMixin {
                 // Ensure keys down are synced between client and server
                 this._keyboard.clearKeysDown(ev);
 
-                this._handleMouseButton(pos.x, pos.y,
-                                        true, xvncButtonToMask(mappedButton));
+                if (this._isPrimaryDisplay) {
+                    this._handleMouseButton(pos.x, pos.y, true, xvncButtonToMask(mappedButton));
+                } else {
+                    this._proxyRFBMessage('mousedown', [ pos.x, pos.y, xvncButtonToMask(mappedButton) ]);
+                }
+                
+                Log.Debug('Mouse Down');
                 break;
             case 'mouseup':
-                this._handleMouseButton(pos.x, pos.y,
-                                        false, xvncButtonToMask(mappedButton));
+                if (this._isPrimaryDisplay) {
+                    this._handleMouseButton(pos.x, pos.y, false, xvncButtonToMask(mappedButton));
+                } else {
+                    this._proxyRFBMessage('mouseup', [ pos.x, pos.y, xvncButtonToMask(mappedButton) ]);
+                }
+                
+                Log.Debug('Mouse Up');
                 break;
             case 'mousemove':
-            	//when there are multiple screens
-            	//This window can get mouse move events when the cursor is outside of the window, if the mouse is down 
-            	//when the cursor crosses the threshold of the window
-                this._handleMouseMove(pos.x, pos.y);
-                break;
+                if (this._isPrimaryDisplay) {
+                    if (ev.buttons > 0) {
+                        Log.Debug("buttons be pressed");
+                    }
+                    this._handleMouseMove(pos.x, pos.y, (ev.buttons > 0));
+                } else {
+                    this._proxyRFBMessage('mousemove', [ pos.x, pos.y, (ev.buttons > 0), this._sendLeftClickonNextMove ]);
+                    this._sendLeftClickonNextMove = false;
+                }
         }
     }
 
@@ -1992,9 +2039,12 @@ export default class RFB extends EventTargetMixin {
         }
 
         this._sendMouse(x, y, this._mouseButtonMask);
+
+        //marked true on canvas going into focus
+        this._sendLeftClickonNextMove = false;
     }
 
-    _handleMouseMove(x, y) {
+    _handleMouseMove(x, y, down) {
         if (this._viewportDragging) {
             const deltaX = this._viewportDragPos.x - x;
             const deltaY = this._viewportDragPos.y - y;
@@ -2009,6 +2059,12 @@ export default class RFB extends EventTargetMixin {
 
             // Skip sending mouse events
             return;
+        }
+
+        // With multiple displays, it is possible to end up in a state where we lost the mouseup event
+        // If a mouse move indicates no buttons are down but the current state shows something down, lets clear the plate
+        if (this._mouseButtonMask !== 0 && !down) {
+            this._mouseButtonMask = 0;
         }
 
         this._mousePos = { 'x': x, 'y': y };
@@ -2026,6 +2082,14 @@ export default class RFB extends EventTargetMixin {
                     this._handleDelayedMouseMove();
                 }, MOUSE_MOVE_DELAY - timeSinceLastMove);
             }
+        }
+
+        //Simulate a left click on focus change
+        //this was added to aid multi-display, not requiring two clicks when switching between displays
+        if (this._sendLeftClickonNextMove) {
+            this._sendLeftClickonNextMove = false;
+            this._handleMouseButton(this._mousePos.x, this._mousePos.y, true, 0x1);
+            this._handleMouseButton(this._mousePos.x, this._mousePos.y, false, 0x1);
         }
     }
 
@@ -2158,7 +2222,7 @@ export default class RFB extends EventTargetMixin {
     }
 
     _fakeMouseMove(ev, elementX, elementY) {
-        this._handleMouseMove(elementX, elementY);
+        this._handleMouseMove(elementX, elementY, false);
         this._cursor.move(ev.detail.clientX, ev.detail.clientY);
     }
 
