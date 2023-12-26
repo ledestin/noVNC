@@ -1769,10 +1769,10 @@ export default class RFB extends EventTargetMixin {
             // Primary to secondary screen message
             switch (event.data.eventType) {
                 case 'updateCursor':
-                    if (event.data.mouseLastScreenIndex === this._display.screenIndex || this._mouseLastScreenIndex === -1) {
+                    //if (event.data.mouseLastScreenIndex === this._display.screenIndex || this._mouseLastScreenIndex === -1) {
                         this._updateCursor(...event.data.args);
                         this._mouseLastScreenIndex = event.data.mouseLastScreenIndex;
-                    }
+                    //}
                     break;
                 case 'receivedClipboard':
                     if (event.data.mouseLastScreenIndex === this._display.screenIndex) {
