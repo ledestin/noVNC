@@ -851,6 +851,18 @@ export default class RFB extends EventTargetMixin {
         }
     }
 
+    terminate() {
+        if (this._isPrimaryDisplay) {
+            //disconnect the rfb connection
+            this._updateConnectionState('disconnecting');
+            this._sock.off('error');
+            this._sock.off('message');
+            this._sock.off('open');
+            //close secondary display windows
+            this._proxyRFBMessage('terminate');
+        }
+    }
+
     sendCtrlAltDel() {
         if (this._rfbConnectionState !== 'connected' || this._viewOnly) { return; }
         Log.Info("Sending Ctrl-Alt-Del");
@@ -1781,6 +1793,10 @@ export default class RFB extends EventTargetMixin {
                     break;
                 case 'disconnect':
                     this.disconnect();
+                    break;
+                case 'terminate':
+                    this.disconnect();
+                    window.close();
                     break;
                 case 'forceResize':
                     this._hiDpi = event.data.args[0];
