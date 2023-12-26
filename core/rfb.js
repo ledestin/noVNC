@@ -241,6 +241,7 @@ export default class RFB extends EventTargetMixin {
             handleGesture: this._handleGesture.bind(this),
             handleFocusChange: this._handleFocusChange.bind(this),
             handleMouseOut: this._handleMouseOut.bind(this),
+            handleVisibilityChange: this._handleVisibilityChange.bind(this),
         };
 
         // main setup
@@ -316,6 +317,7 @@ export default class RFB extends EventTargetMixin {
         this._clipViewport = false;
         this._scaleViewport = false;
         this._resizeSession = false;
+        this._lastVisibilityState = "visible";
 
         this._showDotCursor = false;
         if (options.showDotCursor !== undefined) {
@@ -1185,6 +1187,7 @@ export default class RFB extends EventTargetMixin {
         this._canvas.addEventListener("focus", this._eventHandlers.handleFocusChange);
         window.addEventListener("focus", this._eventHandlers.handleFocusChange);
         window.addEventListener("blur", this._eventHandlers.handleFocusChange);
+        document.addEventListener("visibilitychange", this._eventHandlers.handleVisibilityChange);
 
         //User cursor moves outside of the window
         window.addEventListener("mouseover", this._eventHandlers.handleMouseOut);
@@ -1364,7 +1367,8 @@ export default class RFB extends EventTargetMixin {
         this._canvas.removeEventListener("focus", this._eventHandlers.handleFocusChange);
         window.removeEventListener('resize', this._eventHandlers.windowResize);
         window.removeEventListener('focus', this._eventHandlers.handleFocusChange);
-        window.removeEventListener('focus', this._eventHandlers.handleFocusChange);
+        document.removeEventListener('visibilitychange', this._eventHandlers.handleVisibilityChange);
+
         this._keyboard.ungrab();
         this._gestures.detach();
         if (this._isPrimaryDisplay) {
@@ -1404,10 +1408,29 @@ export default class RFB extends EventTargetMixin {
         this._resendClipboardNextUserDrivenEvent = true;
 
         if (event.type == 'focus' && event.currentTarget instanceof Window) {
-            // added for multi-montiors
-            // as user moves from window to window, focus change loses a click, this marks the next mouse
-            // move to simulate a left click. We wait for the next mouse move because we need accurate x,y coords
-            this._sendLeftClickonNextMove = true;
+
+            if (this._lastVisibilityState === 'visible') {
+                Log.Debug("Window focused while user switched between windows.");
+                // added for multi-montiors
+                // as user moves from window to window, focus change loses a click, this marks the next mouse
+                // move to simulate a left click. We wait for the next mouse move because we need accurate x,y coords
+                this._sendLeftClickonNextMove = true;
+            } else {
+                Log.Debug("Window focused while user switched between tabs.");
+            }
+            
+        }
+
+        if (document.visibilityState === "visible" && this._lastVisibilityState === "hidden") {
+            Log.Debug("Window is now visible.");
+            this._lastVisibilityState = document.visibilityState;
+        }
+    }
+
+    _handleVisibilityChange(event) {
+        if (document.visibilityState === "hidden") {
+            this._lastVisibilityState = document.visibilityState;
+            Log.Debug("Window is not visible.")
         }
     }
 
@@ -1899,14 +1922,19 @@ export default class RFB extends EventTargetMixin {
     }
 
     _handleMouseOut(ev) {
-        if (ev.toElement !== null && ev.relatedTarget === null) {
+        if (ev.toElement !== null && ev.relatedTarget === null && ev.fromElement === null) {
             //mouse was outside of the window and just came in, this is our chance to do things
+            Log.Debug("Mouse came into Window");
+            Log.Debug(ev);
 
             //Ensure the window was not moved to a different screen with a different pixel ratio
             if (this._display.screens[0].pixelRatio !== window.devicePixelRatio) {
                 Log.Debug("Window moved to another screen with different pixel ratio, sending resize request.");
                 this._requestRemoteResize();
             }
+        } else {
+            Log.Debug("Mouse left Window");
+            Log.Debug(ev);
         }
     }
 
