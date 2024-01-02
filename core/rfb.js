@@ -1958,7 +1958,7 @@ export default class RFB extends EventTargetMixin {
         // FIXME: if we're in view-only and not dragging,
         //        should we stop events?
         ev.stopPropagation();
-        ev.preventDefault();
+        //ev.preventDefault(); // If this isn't commented out then cross display dragging doesn't work
 
         if ((ev.type === 'click') || (ev.type === 'contextmenu')) {
             return;
