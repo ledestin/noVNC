@@ -1955,6 +1955,7 @@ export default class RFB extends EventTargetMixin {
         ev.stopPropagation();
 
         if ((ev.type === 'click') || (ev.type === 'contextmenu')) {
+            ev.preventDefault();
             return;
         }
 
@@ -2037,6 +2038,9 @@ export default class RFB extends EventTargetMixin {
                     this._proxyRFBMessage('mousemove', [ pos.x, pos.y, (ev.buttons > 0), this._sendLeftClickonNextMove ]);
                     this._sendLeftClickonNextMove = false;
                 }
+                break;
+            default:
+                ev.preventDefault();
                 break;
         }
     }
