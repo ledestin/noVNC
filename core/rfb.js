@@ -1766,7 +1766,6 @@ export default class RFB extends EventTargetMixin {
                     if (this._mouseButtonMask !== 0 && !event.data.args[2]) {
                         this._mouseButtonMask = 0;
                     }
-                    //Log.Debug('Mouse move Proxied: x-' + coords[0] + ', y-' + coords[1] + ' buttons-' + event.data.args[2]);
                     RFB.messages.pointerEvent(this._sock, this._mousePos.x, this._mousePos.y, this._mouseButtonMask);
 
                     //simulate a left click
@@ -1781,13 +1780,11 @@ export default class RFB extends EventTargetMixin {
                 case 'mousedown':
                     coords = this._display.getServerRelativeCoordinates(event.data.screenIndex, event.data.args[0], event.data.args[1]);
                     this._mouseLastScreenIndex = event.data.screenIndex;
-                    //Log.Debug('Mouse Down Proxied: x-' + coords[0] + ', y-' + coords[1] + ' buttons-' + event.data.args[2]);
                     this._handleMouseButton(coords[0], coords[1], true, event.data.args[2]);
                     break;
                 case 'mouseup':
                     coords = this._display.getServerRelativeCoordinates(event.data.screenIndex, event.data.args[0], event.data.args[1]);
                     this._mouseLastScreenIndex = event.data.screenIndex;
-                    //Log.Debug('Mouse Up Proxied: x-' + coords[0] + ', y-' + coords[1] + ' buttons-' + event.data.args[2]);
                     this._handleMouseButton(coords[0], coords[1], false, event.data.args[2]);
                     break;
                 case 'keyEvent':
@@ -1804,10 +1801,8 @@ export default class RFB extends EventTargetMixin {
             // Primary to secondary screen message
             switch (event.data.eventType) {
                 case 'updateCursor':
-                    //if (event.data.mouseLastScreenIndex === this._display.screenIndex || this._mouseLastScreenIndex === -1) {
-                        this._updateCursor(...event.data.args);
-                        this._mouseLastScreenIndex = event.data.mouseLastScreenIndex;
-                    //}
+                    this._updateCursor(...event.data.args);
+                    this._mouseLastScreenIndex = event.data.mouseLastScreenIndex;
                     break;
                 case 'receivedClipboard':
                     if (event.data.mouseLastScreenIndex === this._display.screenIndex) {
@@ -1958,7 +1953,6 @@ export default class RFB extends EventTargetMixin {
         // FIXME: if we're in view-only and not dragging,
         //        should we stop events?
         ev.stopPropagation();
-        //ev.preventDefault(); // If this isn't commented out then cross display dragging doesn't work
 
         if ((ev.type === 'click') || (ev.type === 'contextmenu')) {
             return;
@@ -1998,6 +1992,9 @@ export default class RFB extends EventTargetMixin {
         const mappedButton = this.mouseButtonMapper.get(ev.button);
         switch (ev.type) {
             case 'mousedown':
+                if (this._display.screens.length === 0 || window.self === window.top) {
+                	ev.preventDefault();
+                }
                 setCapture(this._canvas);
 
                 // Translate CMD+Click into CTRL+click on MacOs
@@ -2023,6 +2020,7 @@ export default class RFB extends EventTargetMixin {
                 Log.Debug('Mouse Down');
                 break;
             case 'mouseup':
+                ev.preventDefault();
                 if (this._isPrimaryDisplay) {
                     this._handleMouseButton(pos.x, pos.y, false, xvncButtonToMask(mappedButton));
                 } else {
@@ -2032,15 +2030,14 @@ export default class RFB extends EventTargetMixin {
                 Log.Debug('Mouse Up');
                 break;
             case 'mousemove':
+            	ev.preventDefault();
                 if (this._isPrimaryDisplay) {
-                    if (ev.buttons > 0) {
-                        Log.Debug("buttons be pressed");
-                    }
                     this._handleMouseMove(pos.x, pos.y, (ev.buttons > 0));
                 } else {
                     this._proxyRFBMessage('mousemove', [ pos.x, pos.y, (ev.buttons > 0), this._sendLeftClickonNextMove ]);
                     this._sendLeftClickonNextMove = false;
                 }
+                break;
         }
     }
 
