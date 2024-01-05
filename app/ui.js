@@ -1966,7 +1966,7 @@ const UI = {
         }
         
         Log.Debug(`Opening a secondary display ${new_display_url}`)
-       //window.open(new_display_url, '_blank', 'toolbar=0,location=0,menubar=0');
+        window.open(new_display_url, '_blank', 'toolbar=0,location=0,menubar=0');
     },
 
     initMonitors(screenPlan) {
