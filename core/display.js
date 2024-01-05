@@ -755,9 +755,10 @@ export default class Display {
                             break;
                         case 'transparent':
                             let imageBmpPromise = createImageBitmap(rect.arr);
-                            imageBmpPromise.then(function(rect, img) {
+                            imageBmpPromise.then( function(img) {
+                                rect.img = img;
                                 rect.img.complete = true;
-                            }).bind(this, rect);
+                            }.bind(rect) );
                             break;
                     }
                     this._syncFrameQueue.push(rect);
@@ -1038,9 +1039,8 @@ export default class Display {
             //rects with transparency get applied last
             for (let i = 0; i < transparent_rects.length; i++) {
                 const a = transparent_rects[i];
-                let screenIndexes = this._getRectScreenIndexes(a);
 
-                for (let sI = 0; sI < screenLocations.length; sI++) {
+                for (let sI = 0; sI < a.screenLocations.length; sI++) {
                     let screenLocation = a.screenLocations[sI];
                     if (sI == 0) {
                         if (a.img) {
