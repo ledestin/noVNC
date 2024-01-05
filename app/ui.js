@@ -1915,16 +1915,42 @@ const UI = {
         return UI.currentDisplay
     },
 
+    async getWindowManagementPermissionState() {
+        let state;
+        // The new permission name.
+        try {
+            ({ state } = await navigator.permissions.query({
+                name: "window-management",
+            }));
+        } catch (err) {
+            if (err.name !== "TypeError") {
+                return `${err.name}: ${err.message}`;
+            }
+            // The old permission name.
+            try {
+                ({ state } = await navigator.permissions.query({
+                    name: "window-placement",
+                }));
+            } catch (err) {
+                if (err.name === "TypeError") {
+                    return "Window management not supported.";
+                }
+                return `${err.name}: ${err.message}`;
+            }
+        }
+        return state;
+    },
+
     async addSecondaryMonitor() {
         let new_display_path = window.location.pathname.replace(/[^/]*$/, '')
         let new_display_url = `${window.location.protocol}//${window.location.host}${new_display_path}screen.html`;
 
         if ('getScreenDetails' in window) {
-            let granted = false;
+            let permission = false;
             try {
                 const { state } = await navigator.permissions.query({ name: 'window-management' });
-                granted = state === 'granted';
-                if (granted && window.screen.isExtended) {
+                permission = (state === 'granted' || state === 'prompt');
+                if (permission && window.screen.isExtended) {
                     const details = await window.getScreenDetails()
                     const current = UI.increaseCurrentDisplay(details) 
                     let screen = details.screens[current]
@@ -1933,13 +1959,14 @@ const UI = {
                     element.document.documentElement.requestFullscreen({ screen: current })
                     return
                 }
-            } catch {
+            } catch (e) {
+                console.log(e)
             // Nothing.
             }
         }
         
         Log.Debug(`Opening a secondary display ${new_display_url}`)
-        window.open(new_display_url, '_blank', 'toolbar=0,location=0,menubar=0');
+       //window.open(new_display_url, '_blank', 'toolbar=0,location=0,menubar=0');
     },
 
     initMonitors(screenPlan) {
