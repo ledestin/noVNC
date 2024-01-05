@@ -57,7 +57,6 @@ const UI = {
     connect() {
         console.log('connect')
         const details = {
-            screen: JSON.parse(JSON.stringify(window.screen)),
             left: window.screenLeft,
             top: window.screenTop
         }
@@ -335,5 +334,7 @@ const UI = {
 }
 
 UI.prime();
-UI.connect();
+if ('getScreenDetails' in window) {
+    UI.connect();
+}
 export default UI;
