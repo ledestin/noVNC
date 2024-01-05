@@ -56,6 +56,12 @@ const UI = {
 
     connect() {
         console.log('connect')
+        const details = {
+            screen: JSON.parse(JSON.stringify(window.screen)),
+            left: window.screenLeft,
+            top: window.screenTop
+        }
+        console.log(details)
         UI.rfb = new RFB(document.getElementById('noVNC_container'),
                         document.getElementById('noVNC_keyboardinput'),
                         "", //URL
@@ -110,13 +116,13 @@ const UI = {
 
         //attach this secondary display to the primary display
         if (UI.screenID === null) {
-            const screen = UI.rfb.attachSecondaryDisplay();
+            const screen = UI.rfb.attachSecondaryDisplay(details);
             UI.screenID = screen.screenID
             UI.screen = screen
         } else {
             console.log('else reattach screens')
             console.log(UI.screen)
-            UI.rfb.reattachSecondaryDisplay(UI.screen);
+            UI.rfb.reattachSecondaryDisplay(UI.screen, details);
         }
         document.querySelector('title').textContent = 'Display ' + UI.screenID
 
@@ -329,5 +335,5 @@ const UI = {
 }
 
 UI.prime();
-
+UI.connect();
 export default UI;

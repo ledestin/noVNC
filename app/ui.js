@@ -25,8 +25,8 @@ window.updateSetting = (name, value) => {
     }
 }
 
-import "core-js/stable";
-import "regenerator-runtime/runtime";
+//import "core-js/stable";
+//import "regenerator-runtime/runtime";
 import * as Log from '../core/util/logging.js';
 import _, { l10n } from './localization.js';
 import { isTouchDevice, isSafari, hasScrollbarGutter, dragThreshold, supportsBinaryClipboard, isFirefox, isWindows, isIOS, supportsPointerLock }
@@ -66,6 +66,7 @@ const UI = {
     sortedMonitors: [],
     selectedMonitor: null,
     refreshRotation: 0,
+    currentDisplay: null,
 
     supportsBroadcastChannel: (typeof BroadcastChannel !== "undefined"),
 
@@ -1891,9 +1892,51 @@ const UI = {
         UI.draw()
     },
 
-    addSecondaryMonitor() {
+    normalizePlacementValues(details) {
+
+    },
+
+    increaseCurrentDisplay(details) {
+        const max = details.screens.length
+        const thisIndex = details.screens.findIndex(el => el === details.currentScreen)
+        if (max === 1) {
+            return 0
+        }
+        if (UI.currentDisplay === null) {
+            UI.currentDisplay = thisIndex
+        }
+        UI.currentDisplay += 1
+        if (UI.currentDisplay === thisIndex) {
+            UI.currentDisplay += 1
+        }
+        if (UI.currentDisplay >= max) {
+            UI.currentDisplay = 0
+        }
+        return UI.currentDisplay
+    },
+
+    async addSecondaryMonitor() {
         let new_display_path = window.location.pathname.replace(/[^/]*$/, '')
         let new_display_url = `${window.location.protocol}//${window.location.host}${new_display_path}screen.html`;
+
+        if ('getScreenDetails' in window) {
+            let granted = false;
+            try {
+                const { state } = await navigator.permissions.query({ name: 'window-management' });
+                granted = state === 'granted';
+                if (granted && window.screen.isExtended) {
+                    const details = await window.getScreenDetails()
+                    const current = UI.increaseCurrentDisplay(details) 
+                    let screen = details.screens[current]
+                    const options = 'toolbar=0,location=0,menubar=0,left='+screen.availLeft+',top='+screen.availTop+',width='+screen.availWidth+',height='+screen.availHeight+',fullscreen'
+                    const element = window.open(new_display_url, '_blank', options);
+                    element.document.documentElement.requestFullscreen({ screen: current })
+                    return
+                }
+            } catch {
+            // Nothing.
+            }
+        }
         
         Log.Debug(`Opening a secondary display ${new_display_url}`)
         window.open(new_display_url, '_blank', 'toolbar=0,location=0,menubar=0');
@@ -2066,7 +2109,6 @@ const UI = {
         for (var i = 0; i < monitors.length; i++) {
             var monitor = monitors[i];
             var a = sortedMonitors.find(el => el.id === monitor.id)
-            console.log(a)
             screens.push({
                 screenID: a.id,
                 serverHeight: Math.round(a.h * scale),
@@ -2080,8 +2122,6 @@ const UI = {
             serverWidth: Math.round(width * scale),
             screens
         }
-        console.log('setScreenPlan')
-        console.log(screenPlan)
         UI.rfb.applyScreenPlan(screenPlan);
     },
 
@@ -2839,11 +2879,19 @@ const UI = {
 
     screenRegistered(e) {
         console.log('screen registered')
+        
         // Get the current screen plan
         // When a new display is added, it is defaulted to be placed to the far right relative to existing displays and to the top
         if (UI.rfb) {
             let screenPlan = UI.rfb.getScreenPlan();
-            console.log(screenPlan)
+            if (e && e.detail) {
+                const { left, top, screenID } = e.detail
+                const current = screenPlan.screens.findIndex(el => el.screenID === screenID)
+                if (current) {
+                    screenPlan.screens[current].x = left
+                    screenPlan.screens[current].y = top
+                }
+            }
 
             UI.updateMonitors(screenPlan)
             UI._identify(UI.monitors)
