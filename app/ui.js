@@ -1945,7 +1945,8 @@ const UI = {
         let new_display_path = window.location.pathname.replace(/[^/]*$/, '')
         let new_display_url = `${window.location.protocol}//${window.location.host}${new_display_path}screen.html`;
 
-        if ('getScreenDetails' in window) {
+        const auto_placement = document.getElementById('noVNC_auto_placement').checked
+        if (auto_placement && 'getScreenDetails' in window) {
             let permission = false;
             try {
                 const { state } = await navigator.permissions.query({ name: 'window-management' });
@@ -1954,9 +1955,8 @@ const UI = {
                     const details = await window.getScreenDetails()
                     const current = UI.increaseCurrentDisplay(details) 
                     let screen = details.screens[current]
-                    const options = 'toolbar=0,location=0,menubar=0,left='+screen.availLeft+',top='+screen.availTop+',width='+screen.availWidth+',height='+screen.availHeight+',fullscreen'
-                    const element = window.open(new_display_url, '_blank', options);
-                    element.document.documentElement.requestFullscreen({ screen: current })
+                    const options = 'left='+screen.availLeft+',top='+screen.availTop+',width='+screen.availWidth+',height='+screen.availHeight+',fullscreen'
+                    window.open(new_display_url, '_blank', options);
                     return
                 }
             } catch (e) {
