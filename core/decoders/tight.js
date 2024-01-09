@@ -195,7 +195,7 @@ export default class TightDecoder {
         const b = data[2];
         const a = data[3];
 
-        const uncompressedSize = width * height / 2 + 1;
+        const uncompressedSize = Math.floor(width * height / 2 + 1);
 
         this._itzlib.reset();
         this._itzlib.setInput(data.slice(4));
