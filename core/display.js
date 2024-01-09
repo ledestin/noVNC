@@ -645,10 +645,11 @@ export default class Display {
 
         if (rect.inPrimary) {
             let imageBmpPromise = createImageBitmap(img);
-            imageBmpPromise.then( function(img) {
+            imageBmpPromise.then( function(rect, img) {
                 rect.img = img;
                 rect.img.complete = true;
-            }.bind(rect) );
+                this._asyncFrameComplete(0, false);
+            }.bind(this, rect) );
         } 
         if (rect.inSecondary) {
             rect.arr = img;
@@ -1085,6 +1086,11 @@ export default class Display {
             if (this._flushing) {
                 this._flushing = false;
                 this.onflush();
+            }
+
+            // if there is more data in queue, then keep checking
+            if (this._asyncFrameQueue[0][2].length > 0) {
+                window.requestAnimationFrame( () => { this._pushAsyncFrame(); });
             }
         } else if (this._asyncFrameQueue[0][1] > 0 && this._asyncFrameQueue[0][1] == this._asyncFrameQueue[0][2].length) {
             //how many times has _pushAsyncFrame been called when the frame had all rects but has not been drawn
