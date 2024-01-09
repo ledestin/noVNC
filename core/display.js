@@ -32,6 +32,7 @@ export default class Display {
         this._maxAsyncFrameQueue = 3;
         this._clearAsyncQueue();
         this._syncFrameQueue = [];
+        this._transparentRectCache = null;
 
         this._flushing = false;
 
@@ -653,6 +654,14 @@ export default class Display {
             rect.arr = img;
         }
 
+        this._transparentRectCache = rect;
+        this._asyncRenderQPush(rect);
+    }
+
+    applyLastTransparentRect(frame_id) {
+        let rect = { ...this._transparentRectCache };
+        rect.frame_id = frame_id;
+        rect.type = 'copytransparent';
         this._asyncRenderQPush(rect);
     }
 
@@ -759,9 +768,13 @@ export default class Display {
                                 rect.img = img;
                                 rect.img.complete = true;
                             }.bind(rect) );
+                            this._transparentRectCache = rect;
                             break;
                     }
                     this._syncFrameQueue.push(rect);
+                    break;
+                case 'copytransparent':
+                    this._syncFrameQueue.push(this._transparentRectCache);
                     break;
                 case 'frameComplete':
                         window.requestAnimationFrame( () => { this._pushSyncRects(); });
@@ -1024,6 +1037,7 @@ export default class Display {
                         switch (a.type) {
                             case 'flip':
                             case 'transparent':
+                            case 'copytransparent':
                                 break;
                             default:
                                 secondaryScreenRects++;
@@ -1032,7 +1046,7 @@ export default class Display {
                         }
                     }
                 }
-                if (a.type == 'transparent') {
+                if (a.type == 'transparent' || a.type == 'copytransparent') {
                     transparent_rects.push(a);
                 }
             }
@@ -1050,7 +1064,12 @@ export default class Display {
                         }
                     } else {
                         secondaryScreenRects++;
-                        this._screens[screenLocation.screenIndex].channel.postMessage({ eventType: 'rect', rect: a, screenLocationIndex: sI });
+                        if (a.type == 'transparent') {
+                            this._screens[screenLocation.screenIndex].channel.postMessage({ eventType: 'rect', rect: a, screenLocationIndex: sI });
+                        } else {
+                            this._screens[screenLocation.screenIndex].channel.postMessage({ eventType: 'copytransparent' });
+                        }
+                        
                     }
                 }
             }
