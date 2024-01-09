@@ -197,6 +197,10 @@ const UI = {
             UI.addOption(document.getElementById('noVNC_setting_logging'), llevels[i], llevels[i]);
         }
 
+        if ('getScreenDetails' in window) {
+            document.getElementById('noVNC_auto_placement_option').classList.add("show");
+        }
+
         // Settings with immediate effects
         UI.initSetting('logging', 'warn');
         UI.updateLogging();
@@ -1913,32 +1917,6 @@ const UI = {
             UI.currentDisplay = 0
         }
         return UI.currentDisplay
-    },
-
-    async getWindowManagementPermissionState() {
-        let state;
-        // The new permission name.
-        try {
-            ({ state } = await navigator.permissions.query({
-                name: "window-management",
-            }));
-        } catch (err) {
-            if (err.name !== "TypeError") {
-                return `${err.name}: ${err.message}`;
-            }
-            // The old permission name.
-            try {
-                ({ state } = await navigator.permissions.query({
-                    name: "window-placement",
-                }));
-            } catch (err) {
-                if (err.name === "TypeError") {
-                    return "Window management not supported.";
-                }
-                return `${err.name}: ${err.message}`;
-            }
-        }
-        return state;
     },
 
     async addSecondaryMonitor() {
