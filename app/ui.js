@@ -2045,7 +2045,12 @@ const UI = {
 
     rect(ctx, x, y, w, h) {
         ctx.beginPath();
-        ctx.roundRect(x, y, w, h, 5);
+        if (typeof ctx.roundRect !== 'undefined') {
+            ctx.roundRect(x, y, w, h, 5);
+        } else {
+            // fallback for old browsers
+            ctx.rect(x, y, w, h);
+        }
         ctx.stroke();
         ctx.closePath();
         ctx.fill();
