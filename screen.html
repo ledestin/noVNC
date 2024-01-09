@@ -107,4 +107,15 @@
             autocomplete="off" spellcheck="false" tabindex="-1"></textarea>
     </div>
     <div id="noVNC_identify_monitor">0</div>
+    <script>
+        function fullscreenchanged(event) {
+            if (document.fullscreenElement) {
+                navigator.keyboard.lock(["Escape"]);
+            } else {
+                navigator.keyboard.unlock(["Escape"]);
+            }
+        }
+        document.addEventListener("fullscreenchange", fullscreenchanged);
+        
+    </script>
 </body>
