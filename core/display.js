@@ -1019,20 +1019,21 @@ export default class Display {
                             case 'img':
                                 this.drawImage(a.img, screenLocation.x, screenLocation.y, a.width, a.height);
                                 break;
-                            case 'transparent':
-                                transparent_rects.push(a);
-                                break;
                         }
                     } else {
-                        if (a.img) {
-                            a.img = null;
-                        }
-
-                        if (a.type !== 'flip') {
-                            secondaryScreenRects++;
-                            this._screens[screenLocation.screenIndex].channel.postMessage({ eventType: 'rect', rect: a, screenLocationIndex: sI });
+                        switch (a.type) {
+                            case 'flip':
+                            case 'transparent':
+                                break;
+                            default:
+                                secondaryScreenRects++;
+                                a.img = null;
+                                this._screens[screenLocation.screenIndex].channel.postMessage({ eventType: 'rect', rect: a, screenLocationIndex: sI });
                         }
                     }
+                }
+                if (a.type == 'transparent') {
+                    transparent_rects.push(a);
                 }
             }
 
@@ -1045,6 +1046,7 @@ export default class Display {
                     if (sI == 0) {
                         if (a.img) {
                             this.drawImage(a.img, a.x, a.y, a.width, a.height);
+                            a.img = null;
                         }
                     } else {
                         secondaryScreenRects++;
