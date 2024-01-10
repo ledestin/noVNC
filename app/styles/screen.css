@@ -62,7 +62,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    writing-mode: vertical-rl;
     padding: 15px 5px;
 }
 #mySidenav.loadin.show_nav {
