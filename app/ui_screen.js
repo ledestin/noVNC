@@ -12,6 +12,7 @@ const UI = {
     screens: [],
     supportsBroadcastChannel: (typeof BroadcastChannel !== "undefined"),
     controlChannel: null,
+    draggingTab: false,
     //Initial Loading of the UI
     prime() {
         console.log('prime')
@@ -37,6 +38,79 @@ const UI = {
 
     addDefaultHandlers() {
         document.getElementById('noVNC_connect_button').addEventListener('click', UI.connect);
+        // Control panel events
+        document.getElementById('toggleMenu').addEventListener('click', UI.toggleMenu);
+        document.getElementById('closeMenu').addEventListener('click', UI.toggleMenu);
+        document.getElementById('fullscreenTrigger').addEventListener('click', UI.fullscreenTrigger);
+        document.getElementById('menuTab').addEventListener('mousemove', UI.dragTab);
+        document.getElementById('menuTab').addEventListener('touchmove', UI.touchDragTab);
+        document.getElementById('dragHandler').addEventListener('mousedown', UI.dragStart);
+        document.getElementById('dragHandler').addEventListener('touchstart', UI.dragStart);
+        document.getElementById('dragHandler').addEventListener('mouseup', UI.dragEnd);
+        document.getElementById('dragHandler').addEventListener('touchend', UI.dragEnd);
+        document.getElementById('menuTab').addEventListener('mouseleave', UI.dragEnd);
+        // End control panel events
+    },
+
+    dragStart(e) {
+        UI.draggingTab = true
+    },
+    dragEnd(e) {
+        document.getElementById('menuTab').classList.remove('dragging')
+        UI.draggingTab = false
+    },
+
+    dragTab(e) {
+        if (UI.draggingTab) {
+            document.getElementById('menuTab').style.top = (e.clientY - 10) + 'px'
+            document.getElementById('menuTab').classList.add('dragging')
+        }
+    },
+    touchDragTab(e) {
+        if (UI.draggingTab) {
+            e.preventDefault()
+            const touch = e.touches[0]
+            document.getElementById('menuTab').style.top = (touch.clientY - 10) + 'px'
+            document.getElementById('menuTab').classList.add('dragging')
+        }
+    },
+
+    fullscreenTrigger() {
+        if (document.fullscreenElement || // alternative standard method
+            document.mozFullScreenElement || // currently working methods
+            document.webkitFullscreenElement ||
+            document.msFullscreenElement) {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.mozCancelFullScreen) {
+                document.mozCancelFullScreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) {
+                document.msExitFullscreen();
+            }
+        } else {
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen();
+            } else if (document.documentElement.mozRequestFullScreen) {
+                document.documentElement.mozRequestFullScreen();
+            } else if (document.documentElement.webkitRequestFullscreen) {
+                document.documentElement.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+            } else if (document.body.msRequestFullscreen) {
+                document.body.msRequestFullscreen();
+            }
+        }
+
+    },
+
+    toggleMenu() {
+        document.getElementById('mySidenav').classList.toggle('show_nav')
+        const show = document.getElementById('mySidenav').classList.contains('show_nav')
+        if (show) {
+            document.getElementById('toggleMenuIcon').classList.add('rotate-180')
+        } else {
+            document.getElementById('toggleMenuIcon').classList.remove('rotate-180')
+        }
     },
 
     getSetting(name, isBool, default_value) {
