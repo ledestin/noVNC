@@ -76,7 +76,7 @@ export default class Display {
             if (delta > 0) {
                 this._fps = (this._flipCnt / (delta / 1000)).toFixed(2);
             }
-            Log.Info('Dropped Frames: ' + this._droppedFrames + ' Dropped Rects: ' + this._droppedRects + ' Forced Frames: ' + this._forcedFrameCnt + ' Missing Flips: ' + this._missingFlipRect + ' Late Flips: ' + this._lateFlipRect);
+            Log.Debug('Dropped Frames: ' + this._droppedFrames + ' Dropped Rects: ' + this._droppedRects + ' Forced Frames: ' + this._forcedFrameCnt + ' Missing Flips: ' + this._missingFlipRect + ' Late Flips: ' + this._lateFlipRect);
             this._flipCnt = 0;
             this._lastFlip = Date.now();
         }.bind(this), 5000);
@@ -108,6 +108,12 @@ export default class Display {
             channel: null
         }];
 
+        //optional offscreen canvas
+        this._enableCanvasBuffer = false;
+        this._backbuffer = document.createElement('canvas');
+        this._drawCtx = this._backbuffer.getContext('2d');
+        this._damageBounds = { left: 0, top: 0, right: this._backbuffer.width, bottom: this._backbuffer.height };
+
         // ===== EVENT HANDLERS =====
 
         this.onflush = () => {  }; // A flush request has finished
@@ -123,6 +129,11 @@ export default class Display {
     }
 
     // ===== PROPERTIES =====
+
+    get enableCanvasBuffer() { return this._enableCanvasBuffer; }
+    set enableCanvasBuffer(value) {
+        this._enableCanvasBuffer = value;
+    }
 
     get screens() { return this._screens; }
     get screenId() { return this._screenID; }
@@ -420,13 +431,22 @@ export default class Display {
         }
 
         const vp = this._screens[0];
-        if (vp.serverWidth !== width || vp.serverHeight !== height) {
+        const canvas = this._target;
+        if (canvas.width !== width || canvas.height !== height) {
+            let saveImg = null;
+            if (canvas.width > 0 && canvas.height > 0) {
+                saveImg = this._targetCtx.getImageData(0, 0, canvas.width, canvas.height);
+            }
+
             vp.serverWidth = width;
             vp.serverHeight = height;
 
-            const canvas = this._target;
             canvas.width = width;
             canvas.height = height;
+
+            if (saveImg) {
+                this._targetCtx.putImageData(saveImg, 0, 0);
+            }
 
             // The position might need to be updated if we've grown
             this.viewportChangePos(0, 0);
@@ -456,31 +476,35 @@ export default class Display {
         this._fbWidth = width;
         this._fbHeight = height;
 
-        const canvas = this._target;
+        let canvas = this._backbuffer;
         if (canvas == undefined) { return; }
+        
         if (this._screens.length > 0) {
             width = this._screens[0].serverWidth;
             height = this._screens[0].serverHeight;
         }
-        if (canvas.width !== width || canvas.height !== height) {
 
+        if (canvas.width !== width || canvas.height !== height) {
             // We have to save the canvas data since changing the size will clear it
             let saveImg = null;
             if (canvas.width > 0 && canvas.height > 0) {
-                saveImg = this._targetCtx.getImageData(0, 0, canvas.width, canvas.height);
+                saveImg = this._drawCtx.getImageData(0, 0, canvas.width, canvas.height);
             }
 
             if (canvas.width !== width) {
                 canvas.width = width;
+
             }
             if (canvas.height !== height) {
                 canvas.height = height;
             }
 
             if (saveImg) {
-                this._targetCtx.putImageData(saveImg, 0, 0);
+                this._drawCtx.putImageData(saveImg, 0, 0);
             }
         }
+
+        
 
         // Readjust the viewport as it may be incorrectly sized
         // and positioned
@@ -557,7 +581,12 @@ export default class Display {
             this._asyncRenderQPush(rect);
         } else {
             this._setFillColor(color);
-            this._targetCtx.fillRect(x, y, width, height);
+            if (this._enableCanvasBuffer) {
+                this._drawCtx.fillRect(x, y, width, height);
+                this._damage(x, y, width, height);
+            } else {
+                this._targetCtx.fillRect(x, y, width, height);
+            }
         }
     }
 
@@ -576,6 +605,8 @@ export default class Display {
             this._processRectScreens(rect);
             this._asyncRenderQPush(rect);
         } else {
+            let targetCtx = ((this._enableCanvasBuffer) ? this._drawCtx : this._targetCtx);
+
             // Due to this bug among others [1] we need to disable the image-smoothing to
             // avoid getting a blur effect when copying data.
             //
@@ -583,12 +614,12 @@ export default class Display {
             //
             // We need to set these every time since all properties are reset
             // when the the size is changed
-            this._targetCtx.mozImageSmoothingEnabled = false;
-            this._targetCtx.webkitImageSmoothingEnabled = false;
-            this._targetCtx.msImageSmoothingEnabled = false;
-            this._targetCtx.imageSmoothingEnabled = false;
+            targetCtx.mozImageSmoothingEnabled = false;
+            targetCtx.webkitImageSmoothingEnabled = false;
+            targetCtx.msImageSmoothingEnabled = false;
+            targetCtx.imageSmoothingEnabled = false;
 
-            this._targetCtx.drawImage(this._target,
+            targetCtx.drawImage(this._target,
                                     oldX, oldY, w, h,
                                     newX, newY, w, h);
         }
@@ -690,7 +721,14 @@ export default class Display {
                                              arr.byteOffset + offset,
                                              width * height * 4);
             let img = new ImageData(data, width, height);
-            this._targetCtx.putImageData(img, x, y);
+            if (this._enableCanvasBuffer) {
+                this._drawCtx.putImageData(img, x, y);
+                this._damage(x, y, width, height);
+            } else {
+                this._targetCtx.putImageData(img, x, y);
+                
+            }
+            
         }
     }
 
@@ -708,16 +746,25 @@ export default class Display {
             this._processRectScreens(rect);
             this._asyncRenderQPush(rect);
         } else {
-            this._targetCtx.putImageData(arr, x, y);
+            if (this._enableCanvasBuffer) {
+                this._drawCtx.putImageData(arr, x, y);
+                this._damage(x, y, width, height);
+            } else {
+                this._targetCtx.putImageData(arr, x, y);
+            }
         }
     }
 
-    drawImage(img, x, y, w, h) {
+    drawImage(img, x, y, w, h, overlay=false) {
         try {
+            let targetCtx = ((this._enableCanvasBuffer && !overlay) ? this._drawCtx : this._targetCtx);
             if (img.width != w || img.height != h) {
-                this._targetCtx.drawImage(img, x, y, w, h);
+                targetCtx.drawImage(img, x, y, w, h);
             } else {
-                this._targetCtx.drawImage(img, x, y);
+                targetCtx.drawImage(img, x, y);
+            }
+            if (this._enableCanvasBuffer && !overlay) {
+                this._damage(x, y, w, h);
             }
         } catch (error) {
             Log.Error('Invalid image recieved.'); //KASM-2090
@@ -747,6 +794,63 @@ export default class Display {
 
     // ===== PRIVATE METHODS =====
 
+    _damage(x, y, w, h) {
+        if (x < this._damageBounds.left) {
+            this._damageBounds.left = x;
+        }
+        if (y < this._damageBounds.top) {
+            this._damageBounds.top = y;
+        }
+        if ((x + w) > this._damageBounds.right) {
+            this._damageBounds.right = x + w;
+        }
+        if ((y + h) > this._damageBounds.bottom) {
+            this._damageBounds.bottom = y + h;
+        }
+    }
+
+    _writeCtxBuffer() {
+        let x = this._damageBounds.left;
+        let y = this._damageBounds.top;
+        let w = this._damageBounds.right - x;
+        let h = this._damageBounds.bottom - y;
+
+        const vp = this._screens[0];
+
+        let vx = x - vp.x;
+        let vy = y - vp.y;
+
+        if (vx < 0) {
+            w += vx;
+            x -= vx;
+            vx = 0;
+        }
+        if (vy < 0) {
+            h += vy;
+            y -= vy;
+            vy = 0;
+        }
+
+        if ((vx + w) > vp.serverWidth) {
+            w = vp.serverWidth - vx;
+        }
+        if ((vy + h) > vp.serverHeight) {
+            h = vp.serverHeight - vy;
+        }
+
+        if ((w > 0) && (h > 0)) {
+            // FIXME: We may need to disable image smoothing here
+            //        as well (see copyImage()), but we haven't
+            //        noticed any problem yet.
+            this._targetCtx.drawImage(this._backbuffer,
+                                        x, y, w, h,
+                                        vx, vy, w, h);
+        }
+
+        this._damageBounds.left = this._damageBounds.top = 65535;
+        this._damageBounds.right = this._damageBounds.bottom = 0;
+    }
+
     _handleSecondaryDisplayMessage(event) {
         if (!this._isPrimaryDisplay && event.data) {
             
@@ -764,6 +868,7 @@ export default class Display {
                             rect.type = 'img';
                             break;
                         case 'transparent':
+                            this._enableCanvasBuffer = true;
                             let imageBmpPromise = createImageBitmap(rect.arr);
                             imageBmpPromise.then( function(img) {
                                 rect.img = img;
@@ -784,6 +889,9 @@ export default class Display {
                         if (!this._isPrimaryDisplay) {
                             this._screens[0].screenIndex = event.data.screenIndex;
                             Log.Error(`Screen with index (${event.data.screenIndex}) successfully registered with the primary display.`);
+                            if (this._screens.length > 0) {
+                                this.resize(this._screens[0].serverWidth, this._screens[0].serverHeight);
+                            }
                         }
                     break;
             }
@@ -822,7 +930,8 @@ export default class Display {
                     break;
                 case 'transparent':
                     if (a.img.complete) {
-                        this.drawImage(a.img, pos.x, pos.y, a.width, a.height);
+                        this._writeCtxBuffer();
+                        this.drawImage(a.img, pos.x, pos.y, a.width, a.height, true);
                     } else {
                         if (this._syncFrameQueue.length > 1000) {
                             this._syncFrameQueue.shift();
@@ -978,7 +1087,7 @@ export default class Display {
                     this._asyncFrameQueue[frameIx][2][currentFrameRectIx].img.addEventListener('load', () => { this._asyncFrameComplete(frameIx); });
                     this._asyncFrameQueue[frameIx][4] = currentFrameRectIx;
                     return;
-                } else if (this._asyncFrameQueue[frameIx][2][currentFrameRectIx].type == 'transparent' && !this._asyncFrameQueue[frameIx][2][currentFrameRectIx].img) {
+                } else if ((this._asyncFrameQueue[frameIx][2][currentFrameRectIx].type == 'transparent' || this._asyncFrameQueue[frameIx][2][currentFrameRectIx].type == 'copytransparent' ) && !this._asyncFrameQueue[frameIx][2][currentFrameRectIx].img) {
                     return;
                 }
 
@@ -1052,6 +1161,10 @@ export default class Display {
                 }
             }
 
+            if (this._enableCanvasBuffer) {
+                this._writeCtxBuffer();
+            }
+
             //rects with transparency get applied last
             for (let i = 0; i < transparent_rects.length; i++) {
                 const a = transparent_rects[i];
@@ -1060,8 +1173,10 @@ export default class Display {
                     let screenLocation = a.screenLocations[sI];
                     if (sI == 0) {
                         if (a.img) {
-                            this.drawImage(a.img, a.x, a.y, a.width, a.height);
+                            this.drawImage(a.img, a.x, a.y, a.width, a.height, true);
                             a.img = null;
+                        } else {
+                            console.log("Transparent rect without i9mage");
                         }
                     } else {
                         secondaryScreenRects++;
@@ -1168,8 +1283,9 @@ export default class Display {
 
     _setFillColor(color) {
         const newStyle = 'rgb(' + color[0] + ',' + color[1] + ',' + color[2] + ')';
+        let targetCtx = ((this._enableCanvasBuffer) ? this._drawCtx : this._targetCtx);
         if (newStyle !== this._prevDrawStyle) {
-            this._targetCtx.fillStyle = newStyle;
+            targetCtx.fillStyle = newStyle;
             this._prevDrawStyle = newStyle;
         }
     }
