@@ -43,6 +43,7 @@ const UI = {
         document.getElementById('closeMenu').addEventListener('click', UI.toggleMenu);
         document.getElementById('fullscreenTrigger').addEventListener('click', UI.fullscreenTrigger);
         document.getElementById('menuTab').addEventListener('mousemove', UI.dragTab);
+        document.getElementById('menuTab').addEventListener('mouseup', UI.dragEnd);
         document.getElementById('menuTab').addEventListener('touchmove', UI.touchDragTab);
         document.getElementById('dragHandler').addEventListener('mousedown', UI.dragStart);
         document.getElementById('dragHandler').addEventListener('touchstart', UI.dragStart);
