@@ -32,7 +32,9 @@ export default class Display {
         this._maxAsyncFrameQueue = 3;
         this._clearAsyncQueue();
         this._syncFrameQueue = [];
-        this._transparentRectCache = null;
+        this._transparentOverlayImg = null;
+        this._transparentOverlayRect = null;
+        this._lastTransparentRectId = "";
 
         this._flushing = false;
 
@@ -132,7 +134,25 @@ export default class Display {
 
     get enableCanvasBuffer() { return this._enableCanvasBuffer; }
     set enableCanvasBuffer(value) {
+        if (value === this._enableCanvasBuffer) { return; }
+
         this._enableCanvasBuffer = value;
+
+        
+        if (value && this._target)
+        {
+            //copy current visible canvas to backbuffer
+            let saveImg = this._targetCtx.getImageData(0, 0, this._target.width, this._target.height);
+            this._drawCtx.putImageData(saveImg, 0, 0);
+
+            if (this._transparentOverlayImg) {
+                this.drawImage(this._transparentOverlayImg, this._transparentOverlayRect.x, this._transparentOverlayRect.y, this._transparentOverlayRect.width, this._transparentOverlayRect.height, true);
+            }
+        } else if (!value && this._target) {
+            //copy backbuffer to canvas to clear any overlays
+            let saveImg = this._targetCtx.getImageData(0, 0, this._target.width, this._target.height);
+            this._drawCtx.putImageData(saveImg, 0, 0);
+        }
     }
 
     get screens() { return this._screens; }
@@ -657,7 +677,7 @@ export default class Display {
         this._asyncRenderQPush(rect);
     }
 
-    transparentRect(x, y, width, height, img, frame_id) {
+    transparentRect(x, y, width, height, img, frame_id, hashId) {
         /* The internal logic cannot handle empty images, so bail early */
         if ((width === 0) || (height === 0)) {
             return;
@@ -670,30 +690,21 @@ export default class Display {
             'y': y,
             'width': width,
             'height': height,
-            'frame_id': frame_id
+            'frame_id': frame_id,
+            'arr': img,
+            'hash_id': hashId
         }
         this._processRectScreens(rect);
 
         if (rect.inPrimary) {
             let imageBmpPromise = createImageBitmap(img);
-            imageBmpPromise.then( function(rect, img) {
-                rect.img = img;
-                rect.img.complete = true;
-                this._asyncFrameComplete(0, false);
-            }.bind(this, rect) );
-        } 
-        if (rect.inSecondary) {
-            rect.arr = img;
+            imageBmpPromise.then( function(img) {
+                this._transparentOverlayImg = img;
+                this.enableCanvasBuffer = true;
+            }.bind(this) );
         }
 
-        this._transparentRectCache = rect;
-        this._asyncRenderQPush(rect);
-    }
-
-    applyLastTransparentRect(frame_id) {
-        let rect = { ...this._transparentRectCache };
-        rect.frame_id = frame_id;
-        rect.type = 'copytransparent';
+        this._transparentOverlayRect = rect;
         this._asyncRenderQPush(rect);
     }
 
@@ -810,6 +821,9 @@ export default class Display {
     }
 
     _writeCtxBuffer() {
+        this._targetCtx.drawImage(this._backbuffer, 0, 0);
+        return;
+
         let x = this._damageBounds.left;
         let y = this._damageBounds.top;
         let w = this._damageBounds.right - x;
@@ -868,19 +882,15 @@ export default class Display {
                             rect.type = 'img';
                             break;
                         case 'transparent':
-                            this._enableCanvasBuffer = true;
                             let imageBmpPromise = createImageBitmap(rect.arr);
                             imageBmpPromise.then( function(img) {
-                                rect.img = img;
-                                rect.img.complete = true;
-                            }.bind(rect) );
-                            this._transparentRectCache = rect;
+                                this._transparentOverlayImg = img;
+                                this._enableCanvasBuffer = true;
+                            }.bind(this) );
+                            this._transparentOverlayRect = rect;
                             break;
                     }
                     this._syncFrameQueue.push(rect);
-                    break;
-                case 'copytransparent':
-                    this._syncFrameQueue.push(this._transparentRectCache);
                     break;
                 case 'frameComplete':
                         window.requestAnimationFrame( () => { this._pushSyncRects(); });
@@ -1115,8 +1125,8 @@ export default class Display {
                 this._asyncFrameQueue.push([ 0, 0, [], false, 0, 0 ]);
             }
 
-            let transparent_rects = [];
             let secondaryScreenRects = 0;
+            let primaryScreenRects = 0;
             
             //render the selected frame
             for (let i = 0; i < frame.length; i++) {
@@ -1142,12 +1152,14 @@ export default class Display {
                             case 'img':
                                 this.drawImage(a.img, screenLocation.x, screenLocation.y, a.width, a.height);
                                 break;
+                            case 'flip':
+                            case 'transparent':
+                                continue;
                         }
+                        primaryScreenRects++;
                     } else {
                         switch (a.type) {
                             case 'flip':
-                            case 'transparent':
-                            case 'copytransparent':
                                 break;
                             default:
                                 secondaryScreenRects++;
@@ -1156,39 +1168,26 @@ export default class Display {
                         }
                     }
                 }
-                if (a.type == 'transparent' || a.type == 'copytransparent') {
-                    transparent_rects.push(a);
-                }
             }
 
             if (this._enableCanvasBuffer) {
-                this._writeCtxBuffer();
-            }
 
-            //rects with transparency get applied last
-            for (let i = 0; i < transparent_rects.length; i++) {
-                const a = transparent_rects[i];
-
-                for (let sI = 0; sI < a.screenLocations.length; sI++) {
-                    let screenLocation = a.screenLocations[sI];
-                    if (sI == 0) {
-                        if (a.img) {
-                            this.drawImage(a.img, a.x, a.y, a.width, a.height, true);
-                            a.img = null;
-                        } else {
-                            console.log("Transparent rect without i9mage");
-                        }
-                    } else {
-                        secondaryScreenRects++;
-                        if (a.type == 'transparent') {
-                            this._screens[screenLocation.screenIndex].channel.postMessage({ eventType: 'rect', rect: a, screenLocationIndex: sI });
-                        } else {
-                            this._screens[screenLocation.screenIndex].channel.postMessage({ eventType: 'copytransparent' });
-                        }
-                        
+                if (primaryScreenRects > 0) {
+                    this._writeCtxBuffer();
+                }
+                
+                if (this._transparentOverlayImg) { 
+                    if (true) { // TODO: change back to primaryScreenRects > 0 after backend changes done
+                        this.drawImage(this._transparentOverlayImg, this._transparentOverlayRect.x, this._transparentOverlayRect.y, this._transparentOverlayRect.width, this._transparentOverlayRect.height, true);
+                    }
+                    if (secondaryScreenRects > 0 && this._lastTransparentRectId !== this._transparentOverlayRect.hash_id) {
+                        this._screens[screenLocation.screenIndex].channel.postMessage({ eventType: 'rect', rect: this._transparentOverlayRect, screenLocationIndex: sI });
+                        this._lastTransparentRectId = this._transparentOverlayRect.hash_id;
                     }
                 }
             }
+
+            
 
             if (secondaryScreenRects > 0) {
                 for (let i = 1; i < this.screens.length; i++) {

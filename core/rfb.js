@@ -1736,8 +1736,6 @@ export default class RFB extends EventTargetMixin {
                     Log.Info(`Secondary monitor (${event.data.screenID}) has been registered.`);
                     break;
                 case 'reattach':
-                    console.log('reattach message')
-                    console.log(event.data)
                     this._display.addScreen(event.data.screenID, event.data.width, event.data.height, event.data.pixelRatio, event.data.containerHeight, event.data.containerWidth);
                     size = this._screenSize();
                     RFB.messages.setDesktopSize(this._sock, size, this._screenFlags);

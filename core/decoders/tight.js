@@ -192,10 +192,9 @@ export default class TightDecoder {
             return false;
         }
         
-        //caching of the last received transparent rect
+        //filter out consecutive redundant data
         let h = hashUInt8Array(data);
         let info = `${x}.${y}.${width}.${height}`
-
         if (!(h === this._lastTransparentRectHash && info === this._lastTransparentRectInfo)) {
             const r = data[0];
             const g = data[1];
@@ -226,11 +225,9 @@ export default class TightDecoder {
             }
 
             let img = new ImageData(new Uint8ClampedArray(rgba.buffer, 0, width * height * 4), width, height);
-            display.transparentRect(x, y, width, height, img, frame_id);
+            display.transparentRect(x, y, width, height, img, frame_id, h);
             this._lastTransparentRectHash = h;
             this._lastTransparentRectInfo = info;
-        } else {
-            display.applyLastTransparentRect(frame_id);
         }
 
         return true;
