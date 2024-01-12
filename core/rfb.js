@@ -217,7 +217,6 @@ export default class RFB extends EventTargetMixin {
         this._gestureLastMagnitudeY = 0;
 
         // Secondary Displays
-        this._secondaryDisplays = {};
         this._supportsBroadcastChannel = (typeof BroadcastChannel !== "undefined");
         if (this._supportsBroadcastChannel) {
             this._controlChannel = new BroadcastChannel("registrationChannel");

@@ -881,7 +881,6 @@ export default class Display {
 
     _handleSecondaryDisplayMessage(event) {
         if (!this._isPrimaryDisplay && event.data) {
-            
             switch (event.data.eventType) {
                 case 'rect':
                     let rect = event.data.rect;
@@ -899,7 +898,7 @@ export default class Display {
                             let imageBmpPromise = createImageBitmap(rect.arr);
                             imageBmpPromise.then( function(img) {
                                 this._transparentOverlayImg = img;
-                                this._enableCanvasBuffer = true;
+                                this.enableCanvasBuffer = true;
                             }.bind(this) );
                             this._transparentOverlayRect = rect;
                             break;
@@ -912,7 +911,7 @@ export default class Display {
                 case 'registered':
                         if (!this._isPrimaryDisplay) {
                             this._screens[0].screenIndex = event.data.screenIndex;
-                            Log.Error(`Screen with index (${event.data.screenIndex}) successfully registered with the primary display.`);
+                            Log.Info(`Screen with index (${event.data.screenIndex}) successfully registered with the primary display.`);
                             if (this._screens.length > 0) {
                                 this.resize(this._screens[0].serverWidth, this._screens[0].serverHeight);
                             }
@@ -954,6 +953,7 @@ export default class Display {
                     }
                     break;
                 default:
+                    this._syncFrameQueue.shift();
                     continue;
             }
             drawRectCnt++;
@@ -1186,7 +1186,7 @@ export default class Display {
                 }
                 
                 if (this._transparentOverlayImg) { 
-                    if (true) { // TODO: change back to primaryScreenRects > 0 after backend changes done
+                    if (primaryScreenRects > 0) {
                         this.drawImage(this._transparentOverlayImg, this._transparentOverlayRect.x, this._transparentOverlayRect.y, this._transparentOverlayRect.width, this._transparentOverlayRect.height, true);
                     }
                     if (secondaryScreenRects > 0 && this._lastTransparentRectId !== this._transparentOverlayRect.hash_id) {
