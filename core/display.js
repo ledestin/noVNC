@@ -698,13 +698,27 @@ export default class Display {
 
         if (rect.inPrimary) {
             let imageBmpPromise = createImageBitmap(img);
-            imageBmpPromise.then( function(img) {
-                this._transparentOverlayImg = img;
+            imageBmpPromise.then( function(bitmap) {
+                this._transparentOverlayImg = bitmap;
                 this.enableCanvasBuffer = true;
             }.bind(this) );
         }
 
         this._transparentOverlayRect = rect;
+        this._asyncRenderQPush(rect);
+    }
+
+    dummyRect(x, y, width, height, frame_id) {
+        let rect = {
+            'type': 'dummy',
+            'img': null,
+            'x': x,
+            'y': y,
+            'width': width,
+            'height': height,
+            'frame_id': frame_id
+        }
+        this._processRectScreens(rect);
         this._asyncRenderQPush(rect);
     }
 
@@ -909,6 +923,7 @@ export default class Display {
     }
 
     _pushSyncRects() {
+        let drawRectCnt = 0;
         whileLoop:
         while (this._syncFrameQueue.length > 0) {
             const a = this._syncFrameQueue[0];
@@ -938,23 +953,18 @@ export default class Display {
                         }
                     }
                     break;
-                case 'transparent':
-                    if (a.img.complete) {
-                        this._writeCtxBuffer();
-                        this.drawImage(a.img, pos.x, pos.y, a.width, a.height, true);
-                    } else {
-                        if (this._syncFrameQueue.length > 1000) {
-                            this._syncFrameQueue.shift();
-                            this._droppedRects++;
-                        } else {
-                            break whileLoop;
-                        }
-                    }
-                    break;
                 default:
-                    Log.Warn(`Unknown rect type: ${rect}`);
+                    continue;
             }
+            drawRectCnt++;
             this._syncFrameQueue.shift();
+        }
+
+        if (this._enableCanvasBuffer && drawRectCnt > 0) {
+            this._writeCtxBuffer();
+            if (this._transparentOverlayImg) {
+                this.drawImage(this._transparentOverlayImg, this._transparentOverlayRect.x, this._transparentOverlayRect.y, this._transparentOverlayRect.width, this._transparentOverlayRect.height, true);
+            }
         }
 
         if (this._syncFrameQueue.length > 0) {
@@ -1097,8 +1107,6 @@ export default class Display {
                     this._asyncFrameQueue[frameIx][2][currentFrameRectIx].img.addEventListener('load', () => { this._asyncFrameComplete(frameIx); });
                     this._asyncFrameQueue[frameIx][4] = currentFrameRectIx;
                     return;
-                } else if ((this._asyncFrameQueue[frameIx][2][currentFrameRectIx].type == 'transparent' || this._asyncFrameQueue[frameIx][2][currentFrameRectIx].type == 'copytransparent' ) && !this._asyncFrameQueue[frameIx][2][currentFrameRectIx].img) {
-                    return;
                 }
 
                 currentFrameRectIx++;
@@ -1152,13 +1160,14 @@ export default class Display {
                             case 'img':
                                 this.drawImage(a.img, screenLocation.x, screenLocation.y, a.width, a.height);
                                 break;
-                            case 'flip':
-                            case 'transparent':
+                            default:
                                 continue;
                         }
                         primaryScreenRects++;
                     } else {
                         switch (a.type) {
+                            case 'dummy':
+                            case 'transparent':
                             case 'flip':
                                 break;
                             default:
@@ -1181,13 +1190,13 @@ export default class Display {
                         this.drawImage(this._transparentOverlayImg, this._transparentOverlayRect.x, this._transparentOverlayRect.y, this._transparentOverlayRect.width, this._transparentOverlayRect.height, true);
                     }
                     if (secondaryScreenRects > 0 && this._lastTransparentRectId !== this._transparentOverlayRect.hash_id) {
-                        this._screens[screenLocation.screenIndex].channel.postMessage({ eventType: 'rect', rect: this._transparentOverlayRect, screenLocationIndex: sI });
-                        this._lastTransparentRectId = this._transparentOverlayRect.hash_id;
+                        for (let sI = 1; sI < this._transparentOverlayRect.screenLocations.length; sI++) {
+                            this._screens[this._transparentOverlayRect.screenLocations[sI].screenIndex].channel.postMessage({ eventType: 'rect', rect: this._transparentOverlayRect, screenLocationIndex: sI });
+                        }
                     }
+                    this._lastTransparentRectId = this._transparentOverlayRect.hash_id;
                 }
             }
-
-            
 
             if (secondaryScreenRects > 0) {
                 for (let i = 1; i < this.screens.length; i++) {

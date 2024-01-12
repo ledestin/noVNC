@@ -228,6 +228,8 @@ export default class TightDecoder {
             display.transparentRect(x, y, width, height, img, frame_id, h);
             this._lastTransparentRectHash = h;
             this._lastTransparentRectInfo = info;
+        } else {
+            display.dummyRect(x, y, width, height, frame_id);
         }
 
         return true;
