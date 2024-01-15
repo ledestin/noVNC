@@ -15,13 +15,11 @@ const UI = {
     draggingTab: false,
     //Initial Loading of the UI
     prime() {
-        console.log('prime')
         this.start();
     },
 
     //Render default UI
     start() {
-        console.log('start')
         window.addEventListener("unload", (e) => { 
             if (UI.rfb) { 
                 UI.disconnect(); 
@@ -130,12 +128,10 @@ const UI = {
     },
 
     connect() {
-        console.log('connect')
         const details = {
             left: window.screenLeft,
             top: window.screenTop
         }
-        console.log(details)
         UI.rfb = new RFB(document.getElementById('noVNC_container'),
                         document.getElementById('noVNC_keyboardinput'),
                         "", //URL
@@ -183,7 +179,6 @@ const UI = {
         }
 
         if (UI.supportsBroadcastChannel) {
-            console.log('add event listener')
             UI.controlChannel = new BroadcastChannel(UI.rfb.connectionID);
             UI.controlChannel.addEventListener('message', UI.handleControlMessage)
         }
@@ -194,8 +189,6 @@ const UI = {
             UI.screenID = screen.screenID
             UI.screen = screen
         } else {
-            console.log('else reattach screens')
-            console.log(UI.screen)
             UI.rfb.reattachSecondaryDisplay(UI.screen, details);
         }
         document.querySelector('title').textContent = 'Display ' + UI.screenID
@@ -251,7 +244,6 @@ const UI = {
                 document.documentElement.classList.add("noVNC_disconnecting");
                 break;
             case 'disconnected':
-                console.log('disconnected')
                 document.documentElement.classList.add("noVNC_disconnected");
                 if (connect_el.classList.contains("noVNC_hidden")) {
                     connect_el.classList.remove('noVNC_hidden');
@@ -271,7 +263,6 @@ const UI = {
 
     identify(data) {
         UI.screens = data.screens
-        console.log('identify')
         const screen = data.screens.find(el => el.id === UI.screenID)
         if (screen) {
             document.getElementById('noVNC_identify_monitor').innerHTML = screen.num
@@ -354,7 +345,6 @@ const UI = {
         if (UI.rfb) {
             UI.rfb.disconnect();
             if (UI.supportsBroadcastChannel) {
-                console.log('remove event listeners')
                 UI.controlChannel.removeEventListener('message', UI.handleControlMessage);
                 UI.rfb.removeEventListener("connect", UI.connectFinished);
             }    

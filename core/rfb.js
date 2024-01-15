@@ -750,7 +750,7 @@ export default class RFB extends EventTargetMixin {
         return screen
     }
 
-    reattachSecondaryDisplay(screen) {
+    reattachSecondaryDisplay(screen, details) {
         this._updateConnectionState('connecting');
         this._registerSecondaryDisplay(screen, details);
         this._updateConnectionState('connected');

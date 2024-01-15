@@ -201,6 +201,11 @@ const UI = {
             document.getElementById('noVNC_auto_placement_option').classList.add("show");
         }
 
+        const initialAutoPlacementValue = window.localStorage.getItem('autoPlacement')
+        if (initialAutoPlacementValue === null) {
+            document.getElementById("noVNC_auto_placement").checked = true
+        }
+
         // Settings with immediate effects
         UI.initSetting('logging', 'warn');
         UI.updateLogging();
@@ -512,6 +517,7 @@ const UI = {
         UI.addClickHandle('noVNC_settings_button', UI.toggleSettingsPanel);
 
         document.getElementById("noVNC_setting_enable_perf_stats").addEventListener('click', UI.showStats);
+        document.getElementById("noVNC_auto_placement").addEventListener('change', UI.setAutoPlacement);
 
         UI.addSettingChangeHandler('encrypt');
         UI.addSettingChangeHandler('resize');
@@ -599,6 +605,14 @@ const UI = {
             UI.addClickHandle('noVNC_addMonitor', UI.addSecondaryMonitor);
             UI.addClickHandle('noVNC_refreshMonitors', UI.displaysRefresh);
             
+        }
+    },
+
+    setAutoPlacement(e) {
+        if (e.target.checked === false) {
+            window.localStorage.setItem('autoPlacement', false)
+        } else {
+            window.localStorage.removeItem('autoPlacement')
         }
     },
 
