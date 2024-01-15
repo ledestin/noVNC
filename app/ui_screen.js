@@ -128,10 +128,16 @@ const UI = {
     },
 
     connect() {
-        const details = {
-            left: window.screenLeft,
-            top: window.screenTop
+
+        let details = null
+        const initialAutoPlacementValue = window.localStorage.getItem('autoPlacement')
+        if (initialAutoPlacementValue === null) {
+            details = {
+                left: window.screenLeft,
+                top: window.screenTop
+            }
         }
+
         UI.rfb = new RFB(document.getElementById('noVNC_container'),
                         document.getElementById('noVNC_keyboardinput'),
                         "", //URL
@@ -399,7 +405,9 @@ const UI = {
 }
 
 UI.prime();
-if ('getScreenDetails' in window) {
+const initialAutoPlacementValue = window.localStorage.getItem('autoPlacement')
+
+if ('getScreenDetails' in window && initialAutoPlacementValue === null) {
     UI.connect();
 }
 export default UI;

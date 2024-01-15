@@ -1543,9 +1543,13 @@ export default class RFB extends EventTargetMixin {
                    size.serverWidth + 'x' + size.serverHeight);
         } else if (this._display.screenIndex > 0) {
             //re-register the secondary display with new resolution
-            const details = {
-                left: window.screenLeft,
-                top: window.screenTop
+            let details = null
+            const initialAutoPlacementValue = window.localStorage.getItem('autoPlacement')
+            if (initialAutoPlacementValue === null) {
+                details = {
+                    left: window.screenLeft,
+                    top: window.screenTop
+                }
             }
             this._registerSecondaryDisplay(false, details);
         }
