@@ -603,7 +603,6 @@ export default class Display {
             this._setFillColor(color);
             if (this._enableCanvasBuffer) {
                 this._drawCtx.fillRect(x, y, width, height);
-                this._damage(x, y, width, height);
             } else {
                 this._targetCtx.fillRect(x, y, width, height);
             }
@@ -626,6 +625,7 @@ export default class Display {
             this._asyncRenderQPush(rect);
         } else {
             let targetCtx = ((this._enableCanvasBuffer) ? this._drawCtx : this._targetCtx);
+            let sourceCvs = ((this._enableCanvasBuffer) ? this._backbuffer : this._target);
 
             // Due to this bug among others [1] we need to disable the image-smoothing to
             // avoid getting a blur effect when copying data.
@@ -639,7 +639,7 @@ export default class Display {
             targetCtx.msImageSmoothingEnabled = false;
             targetCtx.imageSmoothingEnabled = false;
 
-            targetCtx.drawImage(this._target,
+            targetCtx.drawImage(sourceCvs,
                                     oldX, oldY, w, h,
                                     newX, newY, w, h);
         }
@@ -748,7 +748,6 @@ export default class Display {
             let img = new ImageData(data, width, height);
             if (this._enableCanvasBuffer) {
                 this._drawCtx.putImageData(img, x, y);
-                this._damage(x, y, width, height);
             } else {
                 this._targetCtx.putImageData(img, x, y);
                 
@@ -773,7 +772,6 @@ export default class Display {
         } else {
             if (this._enableCanvasBuffer) {
                 this._drawCtx.putImageData(arr, x, y);
-                this._damage(x, y, width, height);
             } else {
                 this._targetCtx.putImageData(arr, x, y);
             }
@@ -787,9 +785,6 @@ export default class Display {
                 targetCtx.drawImage(img, x, y, w, h);
             } else {
                 targetCtx.drawImage(img, x, y);
-            }
-            if (this._enableCanvasBuffer && !overlay) {
-                this._damage(x, y, w, h);
             }
         } catch (error) {
             Log.Error('Invalid image recieved.'); //KASM-2090
@@ -819,64 +814,9 @@ export default class Display {
 
     // ===== PRIVATE METHODS =====
 
-    _damage(x, y, w, h) {
-        if (x < this._damageBounds.left) {
-            this._damageBounds.left = x;
-        }
-        if (y < this._damageBounds.top) {
-            this._damageBounds.top = y;
-        }
-        if ((x + w) > this._damageBounds.right) {
-            this._damageBounds.right = x + w;
-        }
-        if ((y + h) > this._damageBounds.bottom) {
-            this._damageBounds.bottom = y + h;
-        }
-    }
-
     _writeCtxBuffer() {
+    	//TODO: KASM-5450 Damage tracking with transparent rect overlay support
         this._targetCtx.drawImage(this._backbuffer, 0, 0);
-        return;
-
-        let x = this._damageBounds.left;
-        let y = this._damageBounds.top;
-        let w = this._damageBounds.right - x;
-        let h = this._damageBounds.bottom - y;
-
-        const vp = this._screens[0];
-
-        let vx = x - vp.x;
-        let vy = y - vp.y;
-
-        if (vx < 0) {
-            w += vx;
-            x -= vx;
-            vx = 0;
-        }
-        if (vy < 0) {
-            h += vy;
-            y -= vy;
-            vy = 0;
-        }
-
-        if ((vx + w) > vp.serverWidth) {
-            w = vp.serverWidth - vx;
-        }
-        if ((vy + h) > vp.serverHeight) {
-            h = vp.serverHeight - vy;
-        }
-
-        if ((w > 0) && (h > 0)) {
-            // FIXME: We may need to disable image smoothing here
-            //        as well (see copyImage()), but we haven't
-            //        noticed any problem yet.
-            this._targetCtx.drawImage(this._backbuffer,
-                                        x, y, w, h,
-                                        vx, vy, w, h);
-        }
-
-        this._damageBounds.left = this._damageBounds.top = 65535;
-        this._damageBounds.right = this._damageBounds.bottom = 0;
     }
 
     _handleSecondaryDisplayMessage(event) {
