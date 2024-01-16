@@ -32,6 +32,10 @@ const UI = {
 
         UI.addDefaultHandlers();
         UI.updateVisualState('disconnected');
+
+        const webui_mode = window.localStorage.getItem('theme')?.toLowerCase() || 'dark'
+        document.getElementById('screen').classList.add(webui_mode);
+
     },
 
     addDefaultHandlers() {
