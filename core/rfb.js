@@ -4004,9 +4004,15 @@ export default class RFB extends EventTargetMixin {
                 this._screenIndex = this._sock.rQshiftBytes(4);    // id
                 this._sock.rQskipBytes(2);                       // x-position
                 this._sock.rQskipBytes(2);                       // y-position
-                this._sock.rQskipBytes(2);                       // width
-                this._sock.rQskipBytes(2);                       // height
+                let w = this._sock.rQshift16();                       // width
+                let h = this._sock.rQshift16();                       // height
                 this._screenFlags = this._sock.rQshiftBytes(4); // flags
+                let size = this._screenSize();
+                if (size.screens[0].serverWidth !== w || size.screens[0].serverHeight !== h) {
+                    this.forcedResolutionX = w;
+                    this.forcedResolutionY = h;
+		}
+                size = this._screenSize();
             } else {
                 this._sock.rQskipBytes(16);
             }
