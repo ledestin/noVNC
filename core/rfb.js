@@ -1535,7 +1535,11 @@ export default class RFB extends EventTargetMixin {
                 !this._supportsSetDesktopSize) {
                 return;
             }
+            //zero out the server reported resolution
+            this._display.applyServerResolution(0, 0, 0);
+            //recalcuate the resolution we shall request
             const size = this._screenSize();
+            //request a new resolution
             RFB.messages.setDesktopSize(this._sock, size, this._screenFlags);
 
             Log.Debug('Requested new desktop size: ' +
@@ -4008,11 +4012,15 @@ export default class RFB extends EventTargetMixin {
                 let h = this._sock.rQshift16();                       // height
                 this._screenFlags = this._sock.rQshiftBytes(4); // flags
                 let size = this._screenSize();
-                if (size.screens[0].serverWidth !== w || size.screens[0].serverHeight !== h) {
-                    this.forcedResolutionX = w;
-                    this.forcedResolutionY = h;
-		}
-                size = this._screenSize();
+                //if (size.screens[0].serverWidth !== w || size.screens[0].serverHeight !== h) {
+                    //this.forcedResolutionX = w;
+                    //this.forcedResolutionY = h;
+                    //if (this.forcedResolutionX === null && this.forcedResolutionY === null) {
+                    //    this._display.getScreenSize(this.videoQuality, w, h, this._hiDpi, null);
+                    //}
+                    this._display.applyServerResolution(w, h, 0);
+		        //}
+                //size = this._screenSize();
             } else {
                 this._sock.rQskipBytes(16);
             }

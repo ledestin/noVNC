@@ -96,6 +96,8 @@ export default class Display {
             height: this._target.height, //client
             serverWidth: 0, //calculated
             serverHeight: 0, //calculated
+            serverReportedWidth: 0,
+            serverReportedHeight: 0,
             x: 0,
             y: 0,
             relativePosition: 0, //left, right, up, down relative to primary display
@@ -242,11 +244,17 @@ export default class Display {
         this._screens[0].containerHeight = this._target.parentNode.offsetHeight;
         this._screens[0].containerWidth = this._target.parentNode.offsetWidth;
         this._screens[0].pixelRatio = window.devicePixelRatio;
-	this._screens[0].width = this._target.parentNode.offsetWidth;
-	this._screens[0].height = this._target.parentNode.offsetHeight;
+        this._screens[0].width = this._target.parentNode.offsetWidth;
+        this._screens[0].height = this._target.parentNode.offsetHeight;
 
         //calculate server-side and client-side resolution of each screen
         for (let i=0; i<this._screens.length; i++) {
+            if (this._screens[i].serverReportedWidth > 0) {
+                max_width = this._screens[i].serverReportedWidth;
+            }
+            if (this._screens[i].serverReportedHeight > 0) {
+                max_height = this._screens[i].serverReportedHeight;
+            }
             let width = max_width || this._screens[i].containerWidth;
             let height = max_height || this._screens[i].containerHeight;
             let scale = 0;
@@ -301,6 +309,15 @@ export default class Display {
 
         return data;
     }
+    
+    applyServerResolution(width, height, screenIndex) {
+        for (let z = 0; z < this._screens.length; z++) {
+            if (screenIndex === this._screens[z].screenIndex) {
+                this._screens[z].serverReportedWidth = width;
+                this._screens[z].serverReportedHeight = height;
+            }
+        }
+    }
 
     applyScreenPlan(screenPlan) {
         for (let i = 0; i < screenPlan.screens.length; i++) {
@@ -349,6 +366,8 @@ export default class Display {
                 height: height, //client
                 serverWidth: 0, //calculated
                 serverHeight: 0, //calculated
+                serverReportedWidth: 0,
+            	serverReportedHeight: 0,
                 x: x,
                 y: 0,
                 pixelRatio: pixelRatio,
