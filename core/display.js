@@ -96,6 +96,8 @@ export default class Display {
             height: this._target.height, //client
             serverWidth: 0, //calculated
             serverHeight: 0, //calculated
+            serverReportedWidth: 0,
+            serverReportedHeight: 0,
             x: 0,
             y: 0,
             relativePosition: 0, //left, right, up, down relative to primary display
@@ -242,13 +244,21 @@ export default class Display {
         this._screens[0].containerHeight = this._target.parentNode.offsetHeight;
         this._screens[0].containerWidth = this._target.parentNode.offsetWidth;
         this._screens[0].pixelRatio = window.devicePixelRatio;
-	this._screens[0].width = this._target.parentNode.offsetWidth;
-	this._screens[0].height = this._target.parentNode.offsetHeight;
+        this._screens[0].width = this._target.parentNode.offsetWidth;
+        this._screens[0].height = this._target.parentNode.offsetHeight;
 
         //calculate server-side and client-side resolution of each screen
         for (let i=0; i<this._screens.length; i++) {
-            let width = max_width || this._screens[i].containerWidth;
-            let height = max_height || this._screens[i].containerHeight;
+            let screen_max_width = max_width;
+            let screen_max_height = max_height;
+            if (this._screens[i].serverReportedWidth > 0) {
+                screen_max_width = this._screens[i].serverReportedWidth;
+            }
+            if (this._screens[i].serverReportedHeight > 0) {
+                screen_max_height = this._screens[i].serverReportedHeight;
+            }
+            let width = screen_max_width || this._screens[i].containerWidth;
+            let height = screen_max_height || this._screens[i].containerHeight;
             let scale = 0;
 
             //max the resolution of a single screen to 1280
@@ -302,6 +312,15 @@ export default class Display {
         return data;
     }
 
+    applyServerResolution(width, height, screenIndex) {
+        for (let z = 0; z < this._screens.length; z++) {
+            if (screenIndex === this._screens[z].screenIndex) {
+                this._screens[z].serverReportedWidth = width;
+                this._screens[z].serverReportedHeight = height;
+            }
+        }
+    }
+
     applyScreenPlan(screenPlan) {
         for (let i = 0; i < screenPlan.screens.length; i++) {
             for (let z = 0; z < this._screens.length; z++) {
@@ -316,6 +335,9 @@ export default class Display {
     addScreen(screenID, width, height, pixelRatio, containerHeight, containerWidth) {
         if (!this._isPrimaryDisplay) {
             throw new Error("Cannot add a screen to a secondary display.");
+        }
+        else if (containerHeight === 0 || containerWidth === 0 || pixelRatio === 0) {
+            Log.Warn("Invalid screen configuration."); 
         }
         let screenIdx = -1;
 
@@ -349,6 +371,8 @@ export default class Display {
                 height: height, //client
                 serverWidth: 0, //calculated
                 serverHeight: 0, //calculated
+                serverReportedWidth: 0,
+                serverReportedHeight: 0,
                 x: x,
                 y: 0,
                 pixelRatio: pixelRatio,
@@ -836,7 +860,9 @@ export default class Display {
                             let imageBmpPromise = createImageBitmap(rect.arr);
                             imageBmpPromise.then( function(img) {
                                 this._transparentOverlayImg = img;
-                                this.enableCanvasBuffer = true;
+                                if (!this.enableCanvasBuffer) {
+                                    this._enableCanvasBuffer = true;
+                                }
                             }.bind(this) );
                             this._transparentOverlayRect = rect;
                             break;

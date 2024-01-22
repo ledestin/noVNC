@@ -733,14 +733,20 @@ export default class RFB extends EventTargetMixin {
         if (value !== this._hiDpi) {
             this._hiDpi = value;
             this._requestRemoteResize();
-            if (this._display.screens.length > 1) {
-                //force secondary displays to re-register and thus apply new hdpi setting
-                this._proxyRFBMessage('forceResize', [ value ]);
-            }
         }
     }
 
     // ===== PUBLIC METHODS =====
+
+    refreshSecondaryDisplays() {
+        //force secondary displays to re-register and thus apply setting
+        if (this._display.screens.length > 1) {
+            let size = this._screenSize();
+            for (let i = 1; i < size.screens.length; i++) {
+                this._proxyRFBMessage('forceResize', [ size.screens[i].screenID, this._hiDpi, this._clipViewport, this._scaleViewport, this._resizeSession, this._videoQuality, this._forcedResolutionX, this._forcedResolutionY, size.screens[i].width, size.screens[i].height ]);
+            }
+        }
+    }
 
     attachSecondaryDisplay(details) {
         this._updateConnectionState('connecting');
@@ -1509,6 +1515,7 @@ export default class RFB extends EventTargetMixin {
             // When clipping is enabled, the screen is limited to
             // the size of the container.
             const size = this._screenSize();
+            
             this._display.viewportChangeSize(size.screens[0].serverWidth, size.screens[0].serverHeight);
             this._fixScrollbars();
         }
@@ -1535,6 +1542,10 @@ export default class RFB extends EventTargetMixin {
                 !this._supportsSetDesktopSize) {
                 return;
             }
+
+            //zero out the server reported resolution
+            this._display.applyServerResolution(0, 0, 0);
+
             const size = this._screenSize();
             RFB.messages.setDesktopSize(this._sock, size, this._screenFlags);
 
@@ -1550,7 +1561,7 @@ export default class RFB extends EventTargetMixin {
                     top: window.screenTop
                 }
             }
-            this._registerSecondaryDisplay(false, details);
+            this._registerSecondaryDisplay(true, details);
         }
 
         if (this._display.screens.length > 1) {
@@ -1832,9 +1843,22 @@ export default class RFB extends EventTargetMixin {
                     window.close();
                     break;
                 case 'forceResize':
-                    this._hiDpi = event.data.args[0];
-                    this._updateScale();
-                    this._requestRemoteResize();
+                    if (event.data.args[0] == this._display.screenID) {
+                        this._hiDpi = event.data.args[1];
+                        this._clipViewport = event.data.args[2];
+                        this._scaleViewport = event.data.args[3];
+                        this._resizeSession = event.data.args[4];
+                        this._videoQuality = event.data.args[5];
+                        this._forcedResolutionX = event.data.args[6];
+                        this._forcedResolutionY = event.data.args[7];
+
+                        this._display.screens[0].width = event.data.args[8];
+                        this._display.screens[0].height = event.data.args[9];
+                        
+                        this._updateClip();
+                        this._updateScale();
+                        this._requestRemoteResize();
+                    }
                     break;
             }
         }
@@ -1859,7 +1883,7 @@ export default class RFB extends EventTargetMixin {
             let size = this._screenSize();
             this._display.resize(size.screens[0].serverWidth, size.screens[0].serverHeight);
             this._display.autoscale(size.screens[0].serverWidth, size.screens[0].serverHeight, size.screens[0].scale);
-            screen = this._screenSize().screens[0];
+            screen = size.screens[0];
             
             const registertype = (currentScreen) ? 'reattach' : 'register'
 
@@ -4004,9 +4028,11 @@ export default class RFB extends EventTargetMixin {
                 this._screenIndex = this._sock.rQshiftBytes(4);    // id
                 this._sock.rQskipBytes(2);                       // x-position
                 this._sock.rQskipBytes(2);                       // y-position
-                this._sock.rQskipBytes(2);                       // width
-                this._sock.rQskipBytes(2);                       // height
+                let w = this._sock.rQshift16();                       // width
+                let h = this._sock.rQshift16();                       // height
                 this._screenFlags = this._sock.rQshiftBytes(4); // flags
+
+                this._display.applyServerResolution(w, h, 0);
             } else {
                 this._sock.rQskipBytes(16);
             }

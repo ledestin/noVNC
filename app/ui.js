@@ -1745,6 +1745,8 @@ const UI = {
                     if (UI.rfb) {
                         UI.rfb.forcedResolutionX = event.data.value_x;
                         UI.rfb.forcedResolutionY = event.data.value_y;
+                        UI.forceSetting('forced_resolution_x', event.data.value_x, false);
+                        UI.forceSetting('forced_resolution_y', event.data.value_y, false);
                         UI.applyResizeMode();
                         UI.rfb.forcedResolutionX = null;
                         UI.rfb.forcedResolutionY = null;
@@ -1861,9 +1863,10 @@ const UI = {
     // Apply remote resizing or local scaling
     applyResizeMode() {
         if (!UI.rfb) return;
-
-        UI.rfb.scaleViewport = UI.getSetting('resize') === 'scale';
-        UI.rfb.resizeSession = UI.getSetting('resize') === 'remote' || UI.rfb.forcedResolutionX && UI.rfb.forcedResolutionY;
+        let resize_setting = UI.getSetting('resize');
+        UI.rfb.clipViewport = resize_setting !== 'off';
+        UI.rfb.scaleViewport = resize_setting === 'scale';
+        UI.rfb.resizeSession = resize_setting === 'remote' || UI.rfb.forcedResolutionX && UI.rfb.forcedResolutionY;
         UI.rfb.idleDisconnect = UI.getSetting('idle_disconnect');
         UI.rfb.videoQuality = UI.getSetting('video_quality');
         UI.rfb.enableWebP = UI.getSetting('enable_webp');
@@ -2514,6 +2517,8 @@ const UI = {
 
             // Gracefully update settings server side
             UI.rfb.updateConnectionSettings();
+
+            UI.rfb.refreshSecondaryDisplays();
         }
     },
 
