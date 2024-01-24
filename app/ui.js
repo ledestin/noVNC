@@ -2161,104 +2161,119 @@ const UI = {
 
 
     displayMonitors() {
-        // const monitors = UI.sortedMonitors
-        let monitors = UI.sortedMonitors
-        const { canvas, ctx, bb, canvasWidth, canvasHeight, scale } = UI.multiMonitorSettings()
-        const { startLeft, startTop } = UI.getSizes(monitors)
-        let offsetX
-        let offsetY
-        let dragok = false
+        const { canvas, bb} = UI.multiMonitorSettings();
+
+        UI.recenter();
+        UI.draw();
+
+        let offsetX = bb.left;
+        let offsetY = bb.top;
         let startX;
         let startY;
-        
-        offsetX = bb.left
-        offsetY = bb.top
+        let isDragging = false;
 
-        canvas.addEventListener("mousedown", myDown, false);
-        canvas.addEventListener("mouseup", myUp, false);
-        canvas.addEventListener("mousemove", myMove, false);
-        UI.recenter()
-        UI.draw()
+        canvas.removeEventListener("mousedown", this._onDisplaysViewerMouseDown);
+        canvas.removeEventListener("mouseup", this._onDisplaysViewerMouseUp);
+        canvas.removeEventListener("mousemove", this._onDisplaysViewerMouseMove);
 
-        function myDown(e) {
-            let monitors = UI.sortedMonitors
+        this._onDisplaysViewerMouseDown = this._onDisplaysViewerMouseDown || function(e) {
             e.preventDefault();
             e.stopPropagation();
-            let mx = parseInt(e.clientX - offsetX);
-            let my = parseInt(e.clientY - offsetY);
-            for (var i = 0; i < monitors.length; i++) {
-                var mon = monitors[i];
-                var monw = mon.w / mon.scale
-                var monh = mon.h / mon.scale
-                let monx = mon.x
-                let mony = mon.y
-                // Find the closest rect to drag
-                if (mx > monx && mx < (monx + monw) && my > mony && my < (mony + monh)) {
-                    dragok = true;
-                    mon.isDragging = true;
-                    UI.selectedMonitor = mon
-                    break // get out of the loop rather than dragging multiple
+
+            let monitors = UI.sortedMonitors;
+            if (monitors.length === 1) {
+                isDragging = false;
+                return;
+            }
+
+            let x = parseInt(e.clientX - offsetX);
+            let y = parseInt(e.clientY - offsetY);
+
+            // find the closest monitor (defined by it's rect) to drag
+            for (let i = 0; i < monitors.length; i++) {
+                const monitor = monitors[i];
+                const monW = monitor.w / monitor.scale;
+                const monH = monitor.h / monitor.scale;
+                const monX = monitor.x;
+                const monY = monitor.y;
+
+                if (x > monX && x < (monX + monW) && y > monY && y < (monY + monH)) {
+                    isDragging = true;
+                    monitor.isDragging = true;
+                    UI.selectedMonitor = monitor;
+                    break;
                 }
             }
-            startX = mx;
-            startY = my;
-            UI.draw()
-        }
-        function myUp(e) {
-            let monitors = UI.sortedMonitors
+
+            startX = x;
+            startY = y;
+
+            UI.draw();
+        };
+
+        this._onDisplaysViewerMouseUp = this._onDisplaysViewerMouseUp || function(e) {
             e.preventDefault();
             e.stopPropagation();
 
             // clear all the dragging flags
-            dragok = false;
-            for (var i = 0; i < monitors.length; i++) {
+            let monitors = UI.sortedMonitors;
+            isDragging = false;
+            for (let i = 0; i < monitors.length; i++) {
                 monitors[i].isDragging = false;
             }
+
+            // reposition monitors
             monitors.sort((a, b) => {
                 if (a.y >= b.y + (b.h / 2)) {
-                    return 1
+                    return 1;
                 }
-                return  a.x - b.x
-            })
-            UI.recenter()
-            UI.draw()
+                return  a.x - b.x;
+            });
+
+            UI.recenter();
+            UI.draw();
         }
-        function myMove(e) {
-            let monitors = UI.sortedMonitors
-            if (dragok && monitors.length > 1) {
-                e.preventDefault();
-                e.stopPropagation();
 
-                // get the current mouse position
-                var mx = parseInt(e.clientX - offsetX);
-                var my = parseInt(e.clientY - offsetY);
+        this._onDisplaysViewerMouseMove = this._onDisplaysViewerMouseMove || function(e) {
+            e.preventDefault();
+            e.stopPropagation();
 
-                // calculate the distance the mouse has moved
-                // since the last mousemove
-                var dx = mx - startX;
-                var dy = my - startY;
-
-                // move each rect that isDragging 
-                // by the distance the mouse has moved
-                // since the last mousemove
-                for (var i = 0; i < monitors.length; i++) {
-                    var m = monitors[i];
-                    if (m.isDragging) {
-                        m.x += dx;
-                        m.y += dy;
-                    }
-                }
-
-                // redraw the scene with the new rect positions
-                UI.draw();
-
-                // reset the starting mouse position for the next mousemove
-                startX = mx;
-                startY = my;
-
+            if (!isDragging) {
+                return;
             }
+
+            // get the current mouse position
+            const monitors = UI.sortedMonitors;
+            const x = parseInt(e.clientX - offsetX);
+            const y = parseInt(e.clientY - offsetY);
+
+            // calculate the distance the mouse has moved
+            // since the last mousemove
+            const dx = x - startX;
+            const dy = y - startY;
+
+            // move each rect that isDragging 
+            // by the distance the mouse has moved
+            // since the last mousemove
+            for (let i = 0; i < monitors.length; i++) {
+                var m = monitors[i];
+                if (m.isDragging) {
+                    m.x += dx;
+                    m.y += dy;
+                }
+            }
+
+            // redraw the scene with the new rect positions
+            UI.draw();
+
+            // reset the starting mouse position for the next mousemove
+            startX = x;
+            startY = y;
         }
 
+        canvas.addEventListener("mousedown", this._onDisplaysViewerMouseDown, false);
+        canvas.addEventListener("mouseup", this._onDisplaysViewerMouseUp, false);
+        canvas.addEventListener("mousemove", this._onDisplaysViewerMouseMove, false);
     },
 
 
