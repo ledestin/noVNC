@@ -2102,9 +2102,8 @@ const UI = {
             ctx.font = "200 11px sans-serif";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            ctx.fillText(m.w * scale + ' x ' + m.h * scale, m.x + (m.w / 2), m.y + (m.h / 2));
+            ctx.fillText(Math.floor(m.w * scale) + ' x ' + Math.floor(m.h * scale), m.x + (m.w / 2), m.y + (m.h / 2));
         }
-
     },
 
     getSizes(monitors) {
