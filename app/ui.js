@@ -2226,7 +2226,7 @@ const UI = {
         }
         function myMove(e) {
             let monitors = UI.sortedMonitors
-            if (dragok) {
+            if (dragok && monitors.length > 1) {
                 e.preventDefault();
                 e.stopPropagation();
 
