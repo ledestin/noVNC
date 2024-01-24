@@ -13,13 +13,7 @@ window.addEventListener("load", function() {
     loader.src = "vendor/browser-es-module-loader/dist/browser-es-module-loader.js";
     document.head.appendChild(loader);
 });
-window.addEventListener("load", function() {
-    var connect_btn_el = document.getElementById("noVNC_connect_button");
-    if (typeof(connect_btn_el) != 'undefined' && connect_btn_el != null)
-    {
-        connect_btn_el.click();
-    }
-});
+
 
 window.updateSetting = (name, value) => {
     WebUtil.writeSetting(name, value);
@@ -68,6 +62,13 @@ const UI = {
     inhibitReconnect: true,
     reconnectCallback: null,
     reconnectPassword: null,
+    monitors: [],
+    sortedMonitors: [],
+    selectedMonitor: null,
+    refreshRotation: 0,
+    currentDisplay: null,
+
+    supportsBroadcastChannel: (typeof BroadcastChannel !== "undefined"),
 
     prime() {
         return WebUtil.initSettings().then(() => {
@@ -131,11 +132,12 @@ const UI = {
         UI.addConnectionControlHandlers();
         UI.addClipboardHandlers();
         UI.addSettingsHandlers();
+        UI.addDisplaysHandler();
+        // UI.addMultiMonitorAddHandler();
         document.getElementById("noVNC_status")
             .addEventListener('click', UI.hideStatus);
         UI.openControlbar();
 
-        // 
 
         UI.updateVisualState('init');
 
@@ -165,8 +167,8 @@ const UI = {
                 UI.hideKeyboardControls();
             }
         });
-
-        window.addEventListener("beforeunload", (e) => { 
+        
+        window.addEventListener("unload", (e) => { 
             if (UI.rfb) { 
                 UI.disconnect(); 
             } 
@@ -193,6 +195,15 @@ const UI = {
         const llevels = ['error', 'warn', 'info', 'debug'];
         for (let i = 0; i < llevels.length; i += 1) {
             UI.addOption(document.getElementById('noVNC_setting_logging'), llevels[i], llevels[i]);
+        }
+
+        if ('getScreenDetails' in window) {
+            document.getElementById('noVNC_auto_placement_option').classList.add("show");
+        }
+
+        const initialAutoPlacementValue = window.localStorage.getItem('autoPlacement')
+        if (initialAutoPlacementValue === null) {
+            document.getElementById("noVNC_auto_placement").checked = true
         }
 
         // Settings with immediate effects
@@ -402,6 +413,17 @@ const UI = {
         }
     },
 
+    addConnectionControlHandlers() {
+        UI.addClickHandle('noVNC_disconnect_button', UI.disconnect);
+
+        var connect_btn_el = document.getElementById("noVNC_connect_button_2");
+        if (typeof(connect_btn_el) != 'undefined' && connect_btn_el != null)
+        {
+            connect_btn_el.addEventListener('click', UI.connect);
+        }
+
+    },
+
     addTouchSpecificHandlers() {
         document.getElementById("noVNC_keyboard_button")
             .addEventListener('click', UI.toggleVirtualKeyboard);
@@ -472,21 +494,6 @@ const UI = {
             .addEventListener('click', () => UI.rfb.machineReset());
     },
 
-    addConnectionControlHandlers() {
-        UI.addClickHandle('noVNC_disconnect_button', UI.disconnect);
-
-        var connect_btn_el = document.getElementById("noVNC_connect_button");
-        if (typeof(connect_btn_el) != 'undefined' && connect_btn_el != null)
-        {
-            connect_btn_el.addEventListener('click', UI.connect);
-        }
-        document.getElementById("noVNC_cancel_reconnect_button")
-            .addEventListener('click', UI.cancelReconnect);
-
-        document.getElementById("noVNC_credentials_button")
-            .addEventListener('click', UI.setCredentials);
-    },
-
     addClipboardHandlers() {
         UI.addClickHandle('noVNC_clipboard_button', UI.toggleClipboardPanel);
 
@@ -510,6 +517,7 @@ const UI = {
         UI.addClickHandle('noVNC_settings_button', UI.toggleSettingsPanel);
 
         document.getElementById("noVNC_setting_enable_perf_stats").addEventListener('click', UI.showStats);
+        document.getElementById("noVNC_auto_placement").addEventListener('change', UI.setAutoPlacement);
 
         UI.addSettingChangeHandler('encrypt');
         UI.addSettingChangeHandler('resize');
@@ -587,6 +595,32 @@ const UI = {
         window.addEventListener('webkitfullscreenchange', UI.updateFullscreenButton);
         window.addEventListener('msfullscreenchange', UI.updateFullscreenButton);
     },
+
+    addDisplaysHandler() {
+        if (UI.supportsBroadcastChannel) {
+            UI.showControlInput("noVNC_displays_button");
+            UI.addClickHandle('noVNC_displays_button', UI.openDisplays);
+            UI.addClickHandle('noVNC_close_displays', UI.closeDisplays);
+            UI.addClickHandle('noVNC_identify_monitors_button', UI._identify);
+            UI.addClickHandle('noVNC_addMonitor', UI.addSecondaryMonitor);
+            UI.addClickHandle('noVNC_refreshMonitors', UI.displaysRefresh);
+            
+        }
+    },
+
+    setAutoPlacement(e) {
+        if (e.target.checked === false) {
+            window.localStorage.setItem('autoPlacement', false)
+        } else {
+            window.localStorage.removeItem('autoPlacement')
+        }
+    },
+
+    /*addMultiMonitorAddHandler() {
+        if (UI.supportsBroadcastChannel) {
+            UI.addClickHandle('noVNC_addmonitor_button', UI.addSecondaryMonitor);
+        }
+    },*/
 
 /* ------^-------
  * /EVENT HANDLERS
@@ -676,8 +710,6 @@ const UI = {
         // State change closes dialogs as they may not be relevant
         // anymore
         UI.closeAllPanels();
-        document.getElementById('noVNC_credentials_dlg')
-            .classList.remove('noVNC_open');
     },
 
     showStats() {
@@ -1380,9 +1412,12 @@ const UI = {
         UI.rfb = new RFB(document.getElementById('noVNC_container'),
                         document.getElementById('noVNC_keyboardinput'),
                         url,
-                         { shared: UI.getSetting('shared'),
-                           repeaterID: UI.getSetting('repeaterID'),
-                           credentials: { password: password } });
+                        { 
+                            shared: UI.getSetting('shared'),
+                            repeaterID: UI.getSetting('repeaterID'),
+                            credentials: { password: password } 
+                        },
+                        true );
         UI.rfb.addEventListener("connect", UI.connectFinished);
         UI.rfb.addEventListener("disconnect", UI.disconnectFinished);
         UI.rfb.addEventListener("credentialsrequired", UI.credentials);
@@ -1394,6 +1429,7 @@ const UI = {
         UI.rfb.addEventListener("desktopname", UI.updateDesktopName);
         UI.rfb.addEventListener("inputlock", UI.inputLockChanged);
         UI.rfb.addEventListener("inputlockerror", UI.inputLockError);
+        UI.rfb.addEventListener("screenregistered", UI.screenRegistered);
         UI.rfb.translateShortcuts = UI.getSetting('translate_shortcuts');
         UI.rfb.clipViewport = UI.getSetting('view_clip');
         UI.rfb.scaleViewport = UI.getSetting('resize') === 'scale';
@@ -1427,7 +1463,7 @@ const UI = {
         UI.rfb.mouseButtonMapper = UI.initMouseButtonMapper();
         if (UI.rfb.videoQuality === 5) {
             UI.rfb.enableQOI = true;
-	}
+	    }
 
         //Only explicitly request permission to clipboard on browsers that support binary clipboard access
         if (supportsBinaryClipboard()) {
@@ -1681,6 +1717,14 @@ const UI = {
                         UI.toggleIMEMode();
                     }
                     break;
+                case 'open_displays_mode':
+                    if (UI.rfb) {
+                        UI.openDisplays()
+                    }
+                    break;
+                case 'close_displays_mode':
+                    UI.closeDisplays()
+                    break;
                 case 'enable_webrtc':
                     if (!UI.getSetting('enable_webrtc')) {
                         UI.forceSetting('enable_webrtc', true, false);
@@ -1722,6 +1766,16 @@ const UI = {
                     UI.forceSetting('enable_hidpi', event.data.value, false);
                     UI.enableHiDpi();
                     break;
+                case 'control_displays':
+                    parent.postMessage({ action: 'can_control_displays', value: true}, '*' );
+                    break;
+                case 'terminate':
+                    //terminate a session, different then disconnect in that it is assumed KasmVNC will be shutdown
+                    if (UI.rfb) {
+                        UI.rfb.terminate();
+                    }
+                    break;
+
             }
         }
     },
@@ -1744,57 +1798,6 @@ const UI = {
 
     clipboardRx(event) {
         parent.postMessage({ action: 'clipboardrx', value: event.detail.text}, '*' ); //TODO fix star
-    },
-
-/* ------^-------
- *  /CONNECTION
- * ==============
- *   PASSWORD
- * ------v------*/
-
-    credentials(e) {
-        // FIXME: handle more types
-
-        document.getElementById("noVNC_username_block").classList.remove("noVNC_hidden");
-        document.getElementById("noVNC_password_block").classList.remove("noVNC_hidden");
-
-        let inputFocus = "none";
-        if (e.detail.types.indexOf("username") === -1) {
-            document.getElementById("noVNC_username_block").classList.add("noVNC_hidden");
-        } else {
-            inputFocus = inputFocus === "none" ? "noVNC_username_input" : inputFocus;
-        }
-        if (e.detail.types.indexOf("password") === -1) {
-            document.getElementById("noVNC_password_block").classList.add("noVNC_hidden");
-        } else {
-            inputFocus = inputFocus === "none" ? "noVNC_password_input" : inputFocus;
-        }
-        document.getElementById('noVNC_credentials_dlg')
-            .classList.add('noVNC_open');
-
-        setTimeout(() => document
-            .getElementById(inputFocus).focus(), 100);
-
-        Log.Warn("Server asked for credentials");
-        UI.showStatus(_("Credentials are required"), "warning");
-    },
-
-    setCredentials(e) {
-        // Prevent actually submitting the form
-        e.preventDefault();
-
-        let inputElemUsername = document.getElementById('noVNC_username_input');
-        const username = inputElemUsername.value;
-
-        let inputElemPassword = document.getElementById('noVNC_password_input');
-        const password = inputElemPassword.value;
-        // Clear the input after reading the password
-        inputElemPassword.value = "";
-
-        UI.rfb.sendCredentials({ username: username, password: password });
-        UI.reconnectPassword = password;
-        document.getElementById('noVNC_credentials_dlg')
-            .classList.remove('noVNC_open');
     },
 
 /* ------^-------
@@ -1866,6 +1869,390 @@ const UI = {
         UI.rfb.enableWebP = UI.getSetting('enable_webp');
         UI.rfb.enableHiDpi = UI.getSetting('enable_hidpi');
     },
+
+/* ------^-------
+ *  /MULTI-MONITOR SUPPORT
+ * ==============*/
+
+    _identify(e) {
+        UI.identify()
+        UI.rfb.identify(UI.monitors)
+    },
+
+    identify(data) {
+        document.getElementById('noVNC_identify_monitor').innerHTML = '1'
+        document.getElementById('noVNC_identify_monitor').classList.add("show")
+        setTimeout(() => {
+            document.getElementById('noVNC_identify_monitor').classList.remove("show")
+        }, 3500)
+    },
+
+    openDisplays() {
+        document.getElementById('noVNC_displays').classList.add("noVNC_open");
+        if (UI.monitors.length < 1 ) {
+            let screenPlan = UI.rfb.getScreenPlan();
+            UI.initMonitors(screenPlan)
+        }
+        UI.displayMonitors()
+    },
+
+    closeDisplays() {
+        document.getElementById('noVNC_displays').classList.remove("noVNC_open");
+    },
+
+    displaysRefresh() {
+        const rotation = UI.refreshRotation + 180;
+        let screenPlan = UI.rfb.getScreenPlan();
+        document.getElementById('noVNC_refreshMonitors_icon').style.transform = "rotate(" + rotation + "deg)"
+        UI.refreshRotation = rotation
+        UI.updateMonitors(screenPlan)
+        UI.recenter()
+        UI.draw()
+    },
+
+    normalizePlacementValues(details) {
+
+    },
+
+    increaseCurrentDisplay(details) {
+        const max = details.screens.length
+        const thisIndex = details.screens.findIndex(el => el === details.currentScreen)
+        if (max === 1) {
+            return 0
+        }
+        if (UI.currentDisplay === null) {
+            UI.currentDisplay = thisIndex
+        }
+        UI.currentDisplay += 1
+        if (UI.currentDisplay === thisIndex) {
+            UI.currentDisplay += 1
+        }
+        if (UI.currentDisplay >= max) {
+            UI.currentDisplay = 0
+        }
+        return UI.currentDisplay
+    },
+
+    async addSecondaryMonitor() {
+        let new_display_path = window.location.pathname.replace(/[^/]*$/, '')
+        let new_display_url = `${window.location.protocol}//${window.location.host}${new_display_path}screen.html`;
+
+        const auto_placement = document.getElementById('noVNC_auto_placement').checked
+        if (auto_placement && 'getScreenDetails' in window) {
+            let permission = false;
+            try {
+                const { state } = await navigator.permissions.query({ name: 'window-management' });
+                permission = (state === 'granted' || state === 'prompt');
+                if (permission && window.screen.isExtended) {
+                    const details = await window.getScreenDetails()
+                    const current = UI.increaseCurrentDisplay(details) 
+                    let screen = details.screens[current]
+                    const options = 'left='+screen.availLeft+',top='+screen.availTop+',width='+screen.availWidth+',height='+screen.availHeight+',fullscreen'
+                    window.open(new_display_url, '_blank', options);
+                    return
+                }
+            } catch (e) {
+                console.log(e)
+            // Nothing.
+            }
+        }
+        
+        Log.Debug(`Opening a secondary display ${new_display_url}`)
+        window.open(new_display_url, '_blank', 'toolbar=0,location=0,menubar=0');
+    },
+
+    initMonitors(screenPlan) {
+        const { scale } = UI.multiMonitorSettings()
+        let monitors = []
+        let showNativeResolution = false
+        let num = 1
+        screenPlan.screens.forEach(screen => {
+            if (parseFloat(screen.pixelRatio) != 1) {
+                showNativeResolution = true
+            }
+            monitors.push({
+                id: screen.screenID,
+                x: screen.x / scale,
+                y: screen.y / scale,
+                w: screen.serverWidth / scale,
+                h: screen.serverHeight / scale,
+                pixelRatio: screen.pixelRatio,
+                scale: 1,
+                fill: '#eeeeeecc',
+                isDragging: false,
+                num
+            })
+            num++
+        })
+        if (showNativeResolution) {
+            document.getElementById('noVNC_setting_enable_hidpi_option').classList.add("show");
+        } else {
+            document.getElementById('noVNC_setting_enable_hidpi_option').classList.remove("show");
+        }
+        UI.monitors = monitors
+        let deepCopyMonitors = JSON.parse(JSON.stringify(monitors))
+        UI.sortedMonitors = deepCopyMonitors.sort((a, b) => {
+            if (a.y >= b.y + (b.h / 2)) {
+                return 1
+            }
+            return  a.x - b.x
+        })
+
+    },
+
+    updateMonitors(screenPlan) {
+        UI.initMonitors(screenPlan) 
+        UI.recenter()
+        UI.draw()
+    },
+
+    multiMonitorSettings() {
+        const canvas = document.getElementById("noVNC_multiMonitorWidget")
+        return {
+            canvas,
+            ctx: canvas.getContext("2d"),
+            bb: canvas.getBoundingClientRect(),
+            scale: 12,
+            canvasWidth: 700,
+            canvasHeight: 230,
+        }
+    },
+
+    recenter() {
+        const monitors = UI.sortedMonitors
+        UI.removeSpaces()
+        const { startLeft, startTop } = UI.getSizes(monitors)
+
+        for (var i = 0; i < monitors.length; i++) {
+            var m = monitors[i];
+            m.x += startLeft
+            m.y += startTop
+        }
+        UI.setScreenPlan()
+    },
+
+    removeSpaces() {
+        const monitors = UI.sortedMonitors
+        let prev = monitors[0]
+        if (monitors.length > 1) {
+            for (var i = 1; i < monitors.length; i++) {
+                var a = monitors[i];
+                let prevStart = prev.x + prev.w
+                let prevStartTop = prev.y + prev.h
+                if (a.x > prevStart) {
+                    a.x = prevStart
+                }
+                if (a.x < prevStart) {
+                    if (a.y < prevStartTop) {
+                        a.x = prevStart
+                    }
+                }
+                if (a.y > prevStartTop) {
+                    if (a.x <= prevStart) {
+                        a.y = prevStartTop
+                    }
+                }
+                prev = monitors[i]
+            }
+        }
+    },  
+
+    rect(ctx, x, y, w, h) {
+        ctx.beginPath();
+        if (typeof ctx.roundRect !== 'undefined') {
+            ctx.roundRect(x, y, w, h, 5);
+        } else {
+            // fallback for old browsers
+            ctx.rect(x, y, w, h);
+        }
+        ctx.stroke();
+        ctx.closePath();
+        ctx.fill();
+    },
+
+    draw() {
+        const { ctx, canvasWidth, canvasHeight, scale } = UI.multiMonitorSettings()
+        const monitors = UI.sortedMonitors
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+        ctx.rect(0, 0, canvasWidth, canvasHeight);
+
+        for (var i = 0; i < monitors.length; i++) {
+            var m = monitors[i];
+            ctx.fillStyle = m.fill;
+            ctx.lineWidth = 1;
+            ctx.lineJoin = "round";
+            ctx.strokeStyle = m === UI.selectedMonitor ? "#2196F3" : "#aaa";
+            UI.rect(ctx, m.x, m.y, (m.w / m.scale), (m.h / m.scale));
+            ctx.font = "13px sans-serif";
+            ctx.textAlign = "right";
+            ctx.textBaseline = "top";
+            ctx.fillStyle = "#000";
+            ctx.fillText((m.num), (m.x + m.w) - 4, m.y + 4);
+            ctx.font = "200 11px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(m.w * scale + ' x ' + m.h * scale, m.x + (m.w / 2), m.y + (m.h / 2));
+        }
+
+    },
+
+    getSizes(monitors) {
+        const { canvasWidth, canvasHeight } = UI.multiMonitorSettings()
+        let top = monitors[0].y
+        let left = monitors[0].x
+        let width = monitors[0].w
+        let height = monitors[0].h
+        for (var i = 0; i < monitors.length; i++) {
+            var m = monitors[i];
+            if (m.x < left) {
+                left = m.x
+            }
+            if (m.y < top) {
+                top = m.y
+            }
+            if(m.x + m.w > width) {
+                width = m.x + m.w
+            }
+            if(m.y + m.h > height) {
+                height = m.y + m.h
+            }
+        }
+        const startLeft = ((canvasWidth - width - left) / 2);
+        const startTop = ((canvasHeight - height - top) / 2);
+
+        return { top, left, width, height, startLeft, startTop }
+    },
+
+    setScreenPlan() {
+        let monitors = UI.monitors
+        let sortedMonitors = UI.sortedMonitors
+        const { scale } = UI.multiMonitorSettings()
+        const { top, left, width, height } = UI.getSizes(sortedMonitors)
+        const screens = []
+        for (var i = 0; i < monitors.length; i++) {
+            var monitor = monitors[i];
+            var a = sortedMonitors.find(el => el.id === monitor.id)
+            screens.push({
+                screenID: a.id,
+                serverHeight: Math.round(a.h * scale),
+                serverWidth: Math.round(a.w * scale),
+                x: Math.round((a.x - left) * scale),
+                y: Math.round((a.y - top) * scale)
+            })
+        }
+        const screenPlan = {
+            serverHeight: Math.round(height * scale),
+            serverWidth: Math.round(width * scale),
+            screens
+        }
+        UI.rfb.applyScreenPlan(screenPlan);
+    },
+
+
+
+    displayMonitors() {
+        // const monitors = UI.sortedMonitors
+        let monitors = UI.sortedMonitors
+        const { canvas, ctx, bb, canvasWidth, canvasHeight, scale } = UI.multiMonitorSettings()
+        const { startLeft, startTop } = UI.getSizes(monitors)
+        let offsetX
+        let offsetY
+        let dragok = false
+        let startX;
+        let startY;
+        
+        offsetX = bb.left
+        offsetY = bb.top
+
+        canvas.addEventListener("mousedown", myDown, false);
+        canvas.addEventListener("mouseup", myUp, false);
+        canvas.addEventListener("mousemove", myMove, false);
+        UI.recenter()
+        UI.draw()
+
+        function myDown(e) {
+            let monitors = UI.sortedMonitors
+            e.preventDefault();
+            e.stopPropagation();
+            let mx = parseInt(e.clientX - offsetX);
+            let my = parseInt(e.clientY - offsetY);
+            for (var i = 0; i < monitors.length; i++) {
+                var mon = monitors[i];
+                var monw = mon.w / mon.scale
+                var monh = mon.h / mon.scale
+                let monx = mon.x
+                let mony = mon.y
+                // Find the closest rect to drag
+                if (mx > monx && mx < (monx + monw) && my > mony && my < (mony + monh)) {
+                    dragok = true;
+                    mon.isDragging = true;
+                    UI.selectedMonitor = mon
+                    break // get out of the loop rather than dragging multiple
+                }
+            }
+            startX = mx;
+            startY = my;
+            UI.draw()
+        }
+        function myUp(e) {
+            let monitors = UI.sortedMonitors
+            e.preventDefault();
+            e.stopPropagation();
+
+            // clear all the dragging flags
+            dragok = false;
+            for (var i = 0; i < monitors.length; i++) {
+                monitors[i].isDragging = false;
+            }
+            monitors.sort((a, b) => {
+                if (a.y >= b.y + (b.h / 2)) {
+                    return 1
+                }
+                return  a.x - b.x
+            })
+            UI.recenter()
+            UI.draw()
+        }
+        function myMove(e) {
+            let monitors = UI.sortedMonitors
+            if (dragok) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // get the current mouse position
+                var mx = parseInt(e.clientX - offsetX);
+                var my = parseInt(e.clientY - offsetY);
+
+                // calculate the distance the mouse has moved
+                // since the last mousemove
+                var dx = mx - startX;
+                var dy = my - startY;
+
+                // move each rect that isDragging 
+                // by the distance the mouse has moved
+                // since the last mousemove
+                for (var i = 0; i < monitors.length; i++) {
+                    var m = monitors[i];
+                    if (m.isDragging) {
+                        m.x += dx;
+                        m.y += dy;
+                    }
+                }
+
+                // redraw the scene with the new rect positions
+                UI.draw();
+
+                // reset the starting mouse position for the next mousemove
+                startX = mx;
+                startY = my;
+
+            }
+        }
+
+    },
+
+
 
 /* ------^-------
  *    /RESIZE
@@ -2512,6 +2899,28 @@ const UI = {
                 });
             }
         }
+    },
+
+    screenRegistered(e) {
+        console.log('screen registered')
+        
+        // Get the current screen plan
+        // When a new display is added, it is defaulted to be placed to the far right relative to existing displays and to the top
+        if (UI.rfb) {
+            let screenPlan = UI.rfb.getScreenPlan();
+            if (e && e.detail) {
+                const { left, top, screenID } = e.detail
+                const current = screenPlan.screens.findIndex(el => el.screenID === screenID)
+                if (current) {
+                    screenPlan.screens[current].x = left
+                    screenPlan.screens[current].y = top
+                }
+            }
+
+            UI.updateMonitors(screenPlan)
+            UI._identify(UI.monitors)
+        }
+        
     },
 
     //Helper to add options to dropdown.
