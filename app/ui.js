@@ -2161,17 +2161,14 @@ const UI = {
 
 
     displayMonitors() {
-        const { canvas, bb} = UI.multiMonitorSettings();
-
         UI.recenter();
         UI.draw();
 
-        let offsetX = bb.left;
-        let offsetY = bb.top;
         let startX;
         let startY;
         let isDragging = false;
 
+        const { canvas } = UI.multiMonitorSettings();
         canvas.removeEventListener("mousedown", this._onDisplaysViewerMouseDown);
         canvas.removeEventListener("mouseup", this._onDisplaysViewerMouseUp);
         canvas.removeEventListener("mousemove", this._onDisplaysViewerMouseMove);
@@ -2186,8 +2183,9 @@ const UI = {
                 return;
             }
 
-            let x = parseInt(e.clientX - offsetX);
-            let y = parseInt(e.clientY - offsetY);
+            const { bb } = UI.multiMonitorSettings();
+            let x = parseInt(e.clientX - bb.left);
+            let y = parseInt(e.clientY - bb.top);
 
             // find the closest monitor (defined by it's rect) to drag
             for (let i = 0; i < monitors.length; i++) {
@@ -2240,9 +2238,9 @@ const UI = {
             e.stopPropagation();
 
             // get the current mouse position
-            const monitors = UI.sortedMonitors;
-            const x = parseInt(e.clientX - offsetX);
-            const y = parseInt(e.clientY - offsetY);
+            const { bb } = UI.multiMonitorSettings();
+            const x = parseInt(e.clientX - bb.left);
+            const y = parseInt(e.clientY - bb.top);
 
             // calculate the distance the mouse has moved
             // since the last mousemove
@@ -2251,6 +2249,7 @@ const UI = {
 
             // move each rect that is dragging by the distance the mouse has moved
             // since the last mousemove
+            const monitors = UI.sortedMonitors;
             for (let i = 0; i < monitors.length; i++) {
                 const monitor = monitors[i];
                 const monW = monitor.w / monitor.scale;
