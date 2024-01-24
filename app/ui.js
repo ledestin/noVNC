@@ -2942,12 +2942,19 @@ const UI = {
         // When a new display is added, it is defaulted to be placed to the far right relative to existing displays and to the top
         if (UI.rfb) {
             let screenPlan = UI.rfb.getScreenPlan();
+
             if (e && e.detail) {
                 const { left, top, screenID } = e.detail
-                const current = screenPlan.screens.findIndex(el => el.screenID === screenID)
-                if (current > -1) {
-                    screenPlan.screens[current].x = left
-                    screenPlan.screens[current].y = top
+                const registered = screenPlan.screens.findIndex(el => el.screenID === screenID)
+                if (registered !== -1) {
+                    screenPlan.screens[registered].x = left
+                    screenPlan.screens[registered].y = top
+                }
+
+                const main = screenPlan.screens.findIndex(el => el.screenID === this._display._screenID);
+                if (main !== 1) {
+                    screenPlan.screens[main].x = window.screenX;
+                    screenPlan.screens[main].y = window.screenY;
                 }
             }
 
