@@ -25,8 +25,8 @@ window.updateSetting = (name, value) => {
     }
 }
 
-import "core-js/stable";
-import "regenerator-runtime/runtime";
+//import "core-js/stable";
+//import "regenerator-runtime/runtime";
 import * as Log from '../core/util/logging.js';
 import _, { l10n } from './localization.js';
 import { isTouchDevice, isSafari, hasScrollbarGutter, dragThreshold, supportsBinaryClipboard, isFirefox, isWindows, isIOS, supportsPointerLock }
@@ -1748,9 +1748,9 @@ const UI = {
                         UI.forceSetting('forced_resolution_x', event.data.value_x, false);
                         UI.forceSetting('forced_resolution_y', event.data.value_y, false);
                         UI.applyResizeMode();
-                        UI.rfb.forcedResolutionX = null;
-                        UI.rfb.forcedResolutionY = null;
-                        UI.rfb._resizeSession =  UI.getSetting('resize') === 'remote';
+                        //UI.rfb.forcedResolutionX = null;
+                        //UI.rfb.forcedResolutionY = null;
+                        //UI.rfb._resizeSession =  UI.getSetting('resize') === 'remote';
                     }
                     break;
                 case 'set_perf_stats':
@@ -1871,6 +1871,7 @@ const UI = {
         UI.rfb.videoQuality = UI.getSetting('video_quality');
         UI.rfb.enableWebP = UI.getSetting('enable_webp');
         UI.rfb.enableHiDpi = UI.getSetting('enable_hidpi');
+        UI.rfb.updateConnectionSettings();
     },
 
 /* ------^-------
@@ -2587,6 +2588,7 @@ const UI = {
             } else {
                 UI.rfb.enableHiDpi = false;
             }
+            UI.applyResizeMode();
         }
     },
 

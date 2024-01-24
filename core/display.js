@@ -100,13 +100,16 @@ export default class Display {
             serverReportedHeight: 0,
             x: 0,
             y: 0,
+            scale: 1,
             relativePosition: 0, //left, right, up, down relative to primary display
             relativePositionX: 0, //offset relative to primary monitor, always 0 for primary
             relativePositionY: 0, //offset relative to primary monitor, always 0 for primary
             pixelRatio: window.devicePixelRatio,
             containerHeight: this._target.parentNode.offsetHeight,
             containerWidth: this._target.parentNode.offsetWidth,
-            channel: null
+            channel: null,
+            x2: 0,
+            y2: 0
         }];
 
         //optional offscreen canvas
@@ -226,8 +229,10 @@ export default class Display {
     */
     getServerRelativeCoordinates(screenIndex, x, y) {
         if (screenIndex >= 0 && screenIndex < this._screens.length) {
-            x += this._screens[screenIndex].x;
-            y += this._screens[screenIndex].y;
+            x = toSigned32bit(x / this._screens[screenIndex].scale + this._screens[screenIndex].x);
+            y = toSigned32bit(y / this._screens[screenIndex].scale + this._screens[screenIndex].y);
+            //x += this._screens[screenIndex].x;
+            //y += this._screens[screenIndex].y;
         }
 
         return [x, y];
@@ -240,69 +245,69 @@ export default class Display {
             serverHeight: 0
         }
 
+        let i = 0;
+
         //recalculate primary display container size
-        this._screens[0].containerHeight = this._target.parentNode.offsetHeight;
-        this._screens[0].containerWidth = this._target.parentNode.offsetWidth;
-        this._screens[0].pixelRatio = window.devicePixelRatio;
-        this._screens[0].width = this._target.parentNode.offsetWidth;
-        this._screens[0].height = this._target.parentNode.offsetHeight;
+        this._screens[i].containerHeight = this._target.parentNode.offsetHeight;
+        this._screens[i].containerWidth = this._target.parentNode.offsetWidth;
+        this._screens[i].pixelRatio = window.devicePixelRatio;
+        this._screens[i].width = this._target.parentNode.offsetWidth;
+        this._screens[i].height = this._target.parentNode.offsetHeight;
 
         //calculate server-side and client-side resolution of each screen
-        for (let i=0; i<this._screens.length; i++) {
-            let screen_max_width = max_width;
-            let screen_max_height = max_height;
-            if (this._screens[i].serverReportedWidth > 0) {
-                screen_max_width = this._screens[i].serverReportedWidth;
-            }
-            if (this._screens[i].serverReportedHeight > 0) {
-                screen_max_height = this._screens[i].serverReportedHeight;
-            }
-            let width = screen_max_width || this._screens[i].containerWidth;
-            let height = screen_max_height || this._screens[i].containerHeight;
-            let scale = 0;
+        let width = max_width || this._screens[i].containerWidth;
+        let height = max_height || this._screens[i].containerHeight;
+        let scale = 1;
 
-            //max the resolution of a single screen to 1280
-            if (width > 1280 && !disableLimit && resolutionQuality == 1) {
-                height = 1280 * (height/width); //keeping the aspect ratio of original resolution, shrink y to match x
-                width = 1280;
-            }
-            //hard coded 720p
-            else if (resolutionQuality == 0 && !disableLimit) {
-                width = 1280;
-                height = 720;
-            }
-            //force full resolution on a high DPI monitor where the OS is scaling
-            else if (hiDpi) {
-                width = width * this._screens[i].pixelRatio;
-                height = height * this._screens[i].pixelRatio;
-                scale = 1 / this._screens[i].pixelRatio;
-            }
-            //physically small device with high DPI
-            else if (this._antiAliasing === 0 && this._screens[i].pixelRatio > 1 && width < 1000 & width > 0) {
-                Log.Info('Device Pixel ratio: ' + this._screens[i].pixelRatio + ' Reported Resolution: ' + width + 'x' + height); 
-                let targetDevicePixelRatio = 1.5;
-                if (this._screens[i].pixelRatio > 2) { targetDevicePixelRatio = 2; }
-                let scaledWidth = (width * this._screens[i].pixelRatio) * (1 / targetDevicePixelRatio);
-                let scaleRatio = scaledWidth / width;
-                width = width * scaleRatio;
-                height = height * scaleRatio;
-                scale = 1 / scaleRatio;
-                Log.Info('Small device with hDPI screen detected, auto scaling at ' + scaleRatio + ' to ' + width + 'x' + height);
-            }
-            
-            let clientServerRatioH = this._screens[i].containerHeight / height;
-            let clientServerRatioW = this._screens[i].containerWidth / width;
-            
-            this._screens[i].height = Math.floor(height * clientServerRatioH);
-            this._screens[i].width = Math.floor(width * clientServerRatioW);
-            this._screens[i].serverWidth = width;
-            this._screens[i].serverHeight = height;
-            this._screens[i].scale = scale;
+        //max the resolution of a single screen to 1280
+        if (
+            (this._screens[i].serverReportedWidth > 0 && this._screens[i].serverReportedHeight > 0) &&
+            (this._screens[i].serverReportedWidth !== this._screens[i].serverWidth || this._screens[i].serverReportedHeight !== this._screens[i].serverHeight)
+        ) {
+            height = this._screens[i].serverReportedHeight;
+            width = this._screens[i].serverReportedWidth;
+        }
+        else if (width > 1280 && !disableLimit && resolutionQuality == 1) {
+            height = Math.floor(1280 * (height/width)); //keeping the aspect ratio of original resolution, shrink y to match x
+            width = 1280;
+        }
+        //hard coded 720p
+        else if (resolutionQuality == 0 && !disableLimit) {
+            width = 1280;
+            height = 720;
+        }
+        //force full resolution on a high DPI monitor where the OS is scaling
+        else if (hiDpi) {
+            width = Math.floor(width * this._screens[i].pixelRatio);
+            height = Math.floor(height * this._screens[i].pixelRatio);
+            scale = 1 / this._screens[i].pixelRatio;
+        }
+        //physically small device with high DPI
+        else if (this._antiAliasing === 0 && this._screens[i].pixelRatio > 1 && width < 1000 & width > 0) {
+            Log.Info('Device Pixel ratio: ' + this._screens[i].pixelRatio + ' Reported Resolution: ' + width + 'x' + height); 
+            let targetDevicePixelRatio = 1.5;
+            if (this._screens[i].pixelRatio > 2) { targetDevicePixelRatio = 2; }
+            let scaledWidth = (width * this._screens[i].pixelRatio) * (1 / targetDevicePixelRatio);
+            let scaleRatio = scaledWidth / width;
+            width = width * scaleRatio;
+            height = height * scaleRatio;
+            scale = 1 / scaleRatio;
+            Log.Info('Small device with hDPI screen detected, auto scaling at ' + scaleRatio + ' to ' + width + 'x' + height);
+        }
+        
+        let clientServerRatioH = this._screens[i].containerHeight / height;
+        let clientServerRatioW = this._screens[i].containerWidth / width;
+        
+        this._screens[i].height = Math.floor(height * clientServerRatioH);
+        this._screens[i].width = Math.floor(width * clientServerRatioW);
+        this._screens[i].serverWidth = width;
+        this._screens[i].serverHeight = height;
+        this._screens[i].scale = this._screens[i].width / this._screens[i].serverWidth;
+
+
+        for (i = 0; i < this._screens.length; i++) {
             this._screens[i].x2 = this._screens[i].x + this._screens[i].serverWidth;
             this._screens[i].y2 = this._screens[i].y + this._screens[i].serverHeight;
-        }
-
-        for (let i = 0; i < this._screens.length; i++) {
             data.serverWidth = Math.max(data.serverWidth, this._screens[i].x + this._screens[i].serverWidth);
             data.serverHeight = Math.max(data.serverHeight, this._screens[i].y + this._screens[i].serverHeight);
         }
@@ -322,17 +327,27 @@ export default class Display {
     }
 
     applyScreenPlan(screenPlan) {
+        let changes = false;
         for (let i = 0; i < screenPlan.screens.length; i++) {
             for (let z = 0; z < this._screens.length; z++) {
                 if (screenPlan.screens[i].screenID === this._screens[z].screenID) {
-                    this._screens[z].x = screenPlan.screens[i].x;
-                    this._screens[z].y = screenPlan.screens[i].y;
+                    if (this._screens[z].x !== screenPlan.screens[i].x || this._screens[z].y !== screenPlan.screens[i].y) {
+                        this._screens[z].x = screenPlan.screens[i].x;
+                        this._screens[z].y = screenPlan.screens[i].y;
+                        changes = true;
+                    }
+                    if (this._screens[z].x2 !== this._screens[z].x + this._screens[z].serverWidth || this._screens[z].y2 !== this._screens[z].y + this._screens[z].serverHeight) {
+                        this._screens[z].x2 = this._screens[z].x + this._screens[z].serverWidth
+                        this._screens[z].y2 = this._screens[z].y + this._screens[z].serverHeight
+                        changes = true;
+                    }
                 }
             }
         }
+        return changes;
     }
 
-    addScreen(screenID, width, height, pixelRatio, containerHeight, containerWidth) {
+    addScreen(screenID, width, height, pixelRatio, containerHeight, containerWidth, scale, serverWidth, serverHeight) {
         if (!this._isPrimaryDisplay) {
             throw new Error("Cannot add a screen to a secondary display.");
         }
@@ -351,12 +366,19 @@ export default class Display {
         if (screenIdx > 0) {
             //existing screen, update
             const screen = this._screens[screenIdx];
-            screen.width = width;
-            screen.height = height;
-            screen.containerHeight = containerHeight;
-            screen.containerWidth = containerWidth;
-            screen.pixelRatio = pixelRatio;
-
+            if (screen.serverHeight !== serverHeight || screen.serverWidth !== serverWidth || screen.width !== width || screen.height !== height || screen.containerHeight !== containerHeight || screen.containerWidth !== containerWidth || screen.scale !== screen.scale || screen.pixelRatio !== screen.pixelRatio) {
+                screen.width = width;
+                screen.height = height;
+                screen.containerHeight = containerHeight;
+                screen.containerWidth = containerWidth;
+                screen.pixelRatio = pixelRatio;
+                screen.scale = scale;
+                screen.serverWidth = serverWidth;
+                screen.serverHeight = serverHeight;
+                screen.x2 = screen.x + screen.serverWidth;
+                screen.y2 = screen.y + screen.serverHeight;
+                return true;
+            }
         } else {
             //New Screen, add to far right until user repositions it
             let x = 0;
@@ -369,8 +391,8 @@ export default class Display {
                 screenIndex: this.screens.length,
                 width: width, //client
                 height: height, //client
-                serverWidth: 0, //calculated
-                serverHeight: 0, //calculated
+                serverWidth: serverWidth,
+                serverHeight: serverHeight,
                 serverReportedWidth: 0,
                 serverReportedHeight: 0,
                 x: x,
@@ -379,7 +401,9 @@ export default class Display {
                 containerHeight: containerHeight,
                 containerWidth: containerWidth,
                 channel: null,
-                scale: 0
+                scale: scale,
+                x2: x + serverWidth,
+                y2: serverHeight
             }
 
             new_screen.channel = new BroadcastChannel(`screen_${screenID}_channel`);
@@ -387,7 +411,11 @@ export default class Display {
 
             this._screens.push(new_screen);
             new_screen.channel.postMessage({ eventType: "registered", screenIndex: new_screen.screenIndex });
+
+            return new_screen.screenIndex;
         }
+
+        return false;
     }
 
     removeScreen(screenID) {
@@ -814,7 +842,6 @@ export default class Display {
     }
 
     autoscale(containerWidth, containerHeight, scaleRatio=0) {
-
         if (containerWidth === 0 || containerHeight === 0) {
             scaleRatio = 0;
 
@@ -838,7 +865,9 @@ export default class Display {
 
     _writeCtxBuffer() {
     	//TODO: KASM-5450 Damage tracking with transparent rect overlay support
-        this._targetCtx.drawImage(this._backbuffer, 0, 0);
+        if (this._backbuffer.width > 0) {
+            this._targetCtx.drawImage(this._backbuffer, 0, 0);
+        }
     }
 
     _handleSecondaryDisplayMessage(event) {
