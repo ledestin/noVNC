@@ -64,7 +64,6 @@ const UI = {
     reconnectPassword: null,
     monitors: [],
     sortedMonitors: [],
-    selectedMonitor: null,
     refreshRotation: 0,
     currentDisplay: null,
 
@@ -1990,6 +1989,7 @@ const UI = {
                 scale: 1,
                 fill: '#eeeeeecc',
                 isDragging: false,
+                isHovering: false,
                 num
             })
             num++
@@ -2092,7 +2092,7 @@ const UI = {
             ctx.fillStyle = m.fill;
             ctx.lineWidth = 1;
             ctx.lineJoin = "round";
-            ctx.strokeStyle = m === UI.selectedMonitor ? "#2196F3" : "#aaa";
+            ctx.strokeStyle = (m.isDragging || m.isHovering) ? "#2196F3" : "#aaa";
             UI.rect(ctx, m.x, m.y, (m.w / m.scale), (m.h / m.scale));
             ctx.font = "13px sans-serif";
             ctx.textAlign = "right";
@@ -2200,7 +2200,7 @@ const UI = {
                 if (x > monX && x < (monX + monW) && y > monY && y < (monY + monH)) {
                     isDragging = true;
                     monitor.isDragging = true;
-                    UI.selectedMonitor = monitor;
+                    monitor.isHovering = false;
                     break;
                 }
             }
@@ -2220,6 +2220,7 @@ const UI = {
             isDragging = false;
             for (let i = 0; i < monitors.length; i++) {
                 monitors[i].isDragging = false;
+                monitors[i].isHovering = false;
             }
 
             // reposition monitors
@@ -2238,10 +2239,6 @@ const UI = {
             e.preventDefault();
             e.stopPropagation();
 
-            if (!isDragging) {
-                return;
-            }
-
             // get the current mouse position
             const monitors = UI.sortedMonitors;
             const x = parseInt(e.clientX - offsetX);
@@ -2252,15 +2249,27 @@ const UI = {
             const dx = x - startX;
             const dy = y - startY;
 
-            // move each rect that isDragging 
-            // by the distance the mouse has moved
+            // move each rect that is dragging by the distance the mouse has moved
             // since the last mousemove
             for (let i = 0; i < monitors.length; i++) {
-                var m = monitors[i];
-                if (m.isDragging) {
-                    m.x += dx;
-                    m.y += dy;
+                const monitor = monitors[i];
+                const monW = monitor.w / monitor.scale;
+                const monH = monitor.h / monitor.scale;
+                const monX = monitor.x;
+                const monY = monitor.y;
+
+                if (isDragging) {
+                    monitor.isHovering = false;
+                } else if (x > monX && x < (monX + monW) && y > monY && y < (monY + monH)) {
+                    monitor.isHovering = true;
+                } else {
+                    monitor.isHovering = false;
                 }
+
+                if (monitor.isDragging) {
+                    monitor.x += dx;
+                    monitor.y += dy;
+                } 
             }
 
             // redraw the scene with the new rect positions
