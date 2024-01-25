@@ -142,7 +142,8 @@ const UI = {
             }
         }
 
-        UI.rfb = new RFB(document.getElementById('noVNC_container'),
+        if (!UI.rfb) {
+            UI.rfb = new RFB(document.getElementById('noVNC_container'),
                         document.getElementById('noVNC_keyboardinput'),
                         "", //URL
                         { 
@@ -153,6 +154,9 @@ const UI = {
                         },
                         false // Not a primary display
                     );
+        }
+        
+
         UI.rfb.addEventListener("connect", UI.connectFinished);
         //UI.rfb.addEventListener("disconnect", UI.disconnectFinished);
         UI.rfb.forcedResolutionX = UI.getSetting('forced_resolution_x', false);
@@ -197,13 +201,9 @@ const UI = {
         }
 
         //attach this secondary display to the primary display
-        if (UI.screenID === null) {
-            const screen = UI.rfb.attachSecondaryDisplay(details);
-            UI.screenID = screen.screenID
-            UI.screen = screen
-        } else {
-            UI.rfb.reattachSecondaryDisplay(UI.screen, details);
-        }
+        const screen = UI.rfb.attachSecondaryDisplay(details);
+        UI.screenID = screen.screenID
+        UI.screen = screen
         document.querySelector('title').textContent = 'Display ' + UI.screenID
 
 
