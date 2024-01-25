@@ -231,8 +231,6 @@ export default class Display {
         if (screenIndex >= 0 && screenIndex < this._screens.length) {
             x = toSigned32bit(x / this._screens[screenIndex].scale + this._screens[screenIndex].x);
             y = toSigned32bit(y / this._screens[screenIndex].scale + this._screens[screenIndex].y);
-            //x += this._screens[screenIndex].x;
-            //y += this._screens[screenIndex].y;
         }
 
         return [x, y];

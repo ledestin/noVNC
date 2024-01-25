@@ -793,9 +793,6 @@ export default class RFB extends EventTargetMixin {
                 }
 
                 this._pendingApplyResolutionChange = true;
-                //const size = this._screenSize();
-                //RFB.messages.setDesktopSize(this._sock, size, this._screenFlags);
-                //this._updateContinuousUpdates();
             }
             
             return changes;
@@ -1600,14 +1597,9 @@ export default class RFB extends EventTargetMixin {
                     top: window.screenTop
                 }
             }
-            
-            //this._proxyRFBMessage('requestRemoteResize', this._display.screens[0].screenID, this._display.screens[0].screenID
-            this._registerSecondaryDisplay(this._display.screens[0]);
+ 
+            this._registerSecondaryDisplay(this._display.screens[0], details);
         }
-
-        //if (this._display.screens.length > 1) {
-        //    this.dispatchEvent(new CustomEvent("screenregistered", {}));
-        //}
     }
 
     // Gets the the size of the available screen
@@ -1794,12 +1786,8 @@ export default class RFB extends EventTargetMixin {
                     }
                     let screenIndex = this._display.addScreen(event.data.screenID, event.data.width, event.data.height, event.data.pixelRatio, event.data.containerHeight, event.data.containerWidth, event.data.scale, event.data.serverWidth, event.data.serverHeight);
                     this._proxyRFBMessage('screenRegistrationConfirmed', [ this._display.screens[screenIndex].screenID, screenIndex ]);
-                    //size = this._screenSize();
-                    //RFB.messages.setDesktopSize(this._sock, size, this._screenFlags);
                     clearTimeout(this._resizeTimeout);
                     this._resizeTimeout = setTimeout(this._requestRemoteResize.bind(this), 500);
-                    //this._sendEncodings();
-                    //this._updateContinuousUpdates();
                     this.dispatchEvent(new CustomEvent("screenregistered", { detail: details }));
                     Log.Info(`Secondary monitor (${event.data.screenID}) has been registered.`);
                     break;
@@ -1809,10 +1797,6 @@ export default class RFB extends EventTargetMixin {
                     if (changes) {
                         clearTimeout(this._resizeTimeout);
                         this._resizeTimeout = setTimeout(this._requestRemoteResize.bind(this), 500);
-                        //size = this._screenSize();
-                        //RFB.messages.setDesktopSize(this._sock, size, this._screenFlags);
-                        //this._sendEncodings();
-                        //this._updateContinuousUpdates();
                         this.dispatchEvent(new CustomEvent("screenregistered", {}));
                         Log.Info(`Secondary monitor (${event.data.screenID}) has been reattached.`);
                     }
@@ -1833,7 +1817,7 @@ export default class RFB extends EventTargetMixin {
                 case 'mousemove':
                     coords = this._display.getServerRelativeCoordinates(event.data.screenIndex, event.data.args[0], event.data.args[1]);
                     this._mouseLastScreenIndex = event.data.screenIndex;
-                    this._mousePos = { 'x': this._display.absX(coords[0]), 'y': coords[1] };
+                    this._mousePos = { 'x': coords[0], 'y': coords[1] };
                     if (this._mouseButtonMask !== 0 && !event.data.args[2]) {
                         this._mouseButtonMask = 0;
                     }
@@ -2040,8 +2024,6 @@ export default class RFB extends EventTargetMixin {
                     this.dispatchEvent(new CustomEvent("screenregistered", {}));
                 } else {
                     this._requestRemoteResize();
-                    //clearTimeout(this._resizeTimeout);
-                    //this._resizeTimeout = setTimeout(this._requestRemoteResize.bind(this), 500);
                 }
                 
             }
@@ -4106,7 +4088,7 @@ export default class RFB extends EventTargetMixin {
             }
 
             this._display.applyServerResolution(w, h, i);
-            console.log(`Server screen ${sI} with resolution ${w}x${h} at ${x}x${y}`);
+            Log.Debug(`Server reported screen ${sI} with resolution ${w}x${h} at ${x}x${y}`);
         }
 
         /*
