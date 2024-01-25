@@ -1803,18 +1803,19 @@ export default class RFB extends EventTargetMixin {
                     Log.Info(`Secondary monitor (${event.data.screenID}) has been registered.`);
                     break;
                 case 'reattach':
-                    let changes = this._display.addScreen(event.data.screenID, event.data.width, event.data.height, event.data.pixelRatio, event.data.containerHeight, event.data.containerWidth, event.data.scale, event.data.serverWidth, event.data.serverHeight);
-                    
-                    if (changes) {
-                        clearTimeout(this._resizeTimeout);
-                        this._resizeTimeout = setTimeout(this._requestRemoteResize.bind(this), 500);
-                        //size = this._screenSize();
-                        //RFB.messages.setDesktopSize(this._sock, size, this._screenFlags);
-                        //this._sendEncodings();
-                        //this._updateContinuousUpdates();
-
-                        this.dispatchEvent(new CustomEvent("screenregistered", {}));
-                        Log.Info(`Secondary monitor (${event.data.screenID}) has been reattached.`);
+                    if (!isNaN(event.data.height)) { // Stop Phantom display getting added with 0 height
+                        let changes = this._display.addScreen(event.data.screenID, event.data.width, event.data.height, event.data.pixelRatio, event.data.containerHeight, event.data.containerWidth, event.data.scale, event.data.serverWidth, event.data.serverHeight);
+                        
+                        if (changes) {
+                            clearTimeout(this._resizeTimeout);
+                            this._resizeTimeout = setTimeout(this._requestRemoteResize.bind(this), 500);
+                            //size = this._screenSize();
+                            //RFB.messages.setDesktopSize(this._sock, size, this._screenFlags);
+                            //this._sendEncodings();
+                            //this._updateContinuousUpdates();
+                            this.dispatchEvent(new CustomEvent("screenregistered", {}));
+                            Log.Info(`Secondary monitor (${event.data.screenID}) has been reattached.`);
+                        }
                     }
                     break;
                 case 'unregister':
