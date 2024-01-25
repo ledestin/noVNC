@@ -4183,16 +4183,6 @@ export default class RFB extends EventTargetMixin {
         this._updateClip();
         this._updateScale();
 
-        /*
-        if (this._scaleViewport && this._clipViewport) {
-            this._updateClip();
-        }
-        this._updateScale();
-        if (!this._scaleViewport && this._clipViewport) {
-            this._updateClip();
-        }
-        */
-
         this._updateContinuousUpdates();
     }
 
