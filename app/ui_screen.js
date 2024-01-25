@@ -161,7 +161,7 @@ const UI = {
         //UI.rfb.addEventListener("disconnect", UI.disconnectFinished);
         UI.rfb.forcedResolutionX = UI.getSetting('forced_resolution_x', false);
         UI.rfb.forcedResolutionY = UI.getSetting('forced_resolution_y', false);
-        let resize_setting = UI.getSetting('resize', false, 'remote');
+        const resize_setting = UI.getSetting('resize', false, 'remote');
         UI.rfb.clipViewport = resize_setting !== 'off';
         UI.rfb.scaleViewport = resize_setting === 'scale';
         UI.rfb.resizeSession = resize_setting === 'remote' || UI.rfb.forcedResolutionX && UI.rfb.forcedResolutionY;
@@ -412,7 +412,7 @@ const UI = {
      // Apply remote resizing or local scaling
      applyResizeMode() {
         if (!UI.rfb) return;
-        let resize_setting = UI.getSetting('resize');
+        const resize_setting = UI.getSetting('resize');
         UI.rfb.clipViewport = resize_setting !== 'off';
         UI.rfb.scaleViewport = resize_setting === 'scale';
         UI.rfb.resizeSession = resize_setting === 'remote' || UI.rfb.forcedResolutionX && UI.rfb.forcedResolutionY;

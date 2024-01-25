@@ -1860,7 +1860,7 @@ const UI = {
     // Apply remote resizing or local scaling
     applyResizeMode() {
         if (!UI.rfb) return;
-        let resize_setting = UI.getSetting('resize');
+        const resize_setting = UI.getSetting('resize');
         UI.rfb.clipViewport = resize_setting !== 'off';
         UI.rfb.scaleViewport = resize_setting === 'scale';
         UI.rfb.resizeSession = resize_setting === 'remote' || UI.rfb.forcedResolutionX && UI.rfb.forcedResolutionY;
