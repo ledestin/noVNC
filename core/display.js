@@ -238,7 +238,7 @@ export default class Display {
         return [x, y];
     }
 
-    getScreenSize(resolutionQuality, max_width, max_height, hiDpi, disableLimit) {
+    getScreenSize(resolutionQuality, max_width, max_height, hiDpi, disableLimit, disableScaling) {
         let data = {
             screens: null,
             serverWidth: 0,
@@ -262,7 +262,10 @@ export default class Display {
         //max the resolution of a single screen to 1280
         if (
             (this._screens[i].serverReportedWidth > 0 && this._screens[i].serverReportedHeight > 0) &&
-            (this._screens[i].serverReportedWidth !== this._screens[i].serverWidth || this._screens[i].serverReportedHeight !== this._screens[i].serverHeight)
+            (
+                disableScaling ||
+                (this._screens[i].serverReportedWidth !== this._screens[i].serverWidth || this._screens[i].serverReportedHeight !== this._screens[i].serverHeight)
+            )
         ) {
             height = this._screens[i].serverReportedHeight;
             width = this._screens[i].serverReportedWidth;

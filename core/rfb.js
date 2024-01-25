@@ -1519,6 +1519,8 @@ export default class RFB extends EventTargetMixin {
             this._updateScale();
         });
 
+        this.dispatchEvent(new CustomEvent("screenregistered", { }));
+
         if (this._resizeSession) {
             // Request changing the resolution of the remote display to
             // the size of the local browser viewport.
@@ -1609,7 +1611,7 @@ export default class RFB extends EventTargetMixin {
 
     // Gets the the size of the available screen
     _screenSize (limited) {
-        return this._display.getScreenSize(this.videoQuality, this.forcedResolutionX, this.forcedResolutionY, this._hiDpi, limited);
+        return this._display.getScreenSize(this.videoQuality, this.forcedResolutionX, this.forcedResolutionY, this._hiDpi, limited, !this._resizeSession);
     }
 
     _fixScrollbars() {
@@ -1852,7 +1854,6 @@ export default class RFB extends EventTargetMixin {
                     this._mousePos = { 'x': coords[0], 'y': coords[1] };
                     this._mouseButtonMask |= event.data.args[2];
                     RFB.messages.pointerEvent(this._sock, this._mousePos.x, this._mousePos.y, this._mouseButtonMask);
-                    Log.Debug(`Secondary mouse down ${this._mouseButtonMask}.`);
                     break;
                 case 'mouseup':
                     coords = this._display.getServerRelativeCoordinates(event.data.screenIndex, event.data.args[0], event.data.args[1]);
@@ -1860,7 +1861,6 @@ export default class RFB extends EventTargetMixin {
                     this._mousePos = { 'x': coords[0], 'y': coords[1] };
                     this._mouseButtonMask &= ~event.data.args[2];
                     RFB.messages.pointerEvent(this._sock, this._mousePos.x, this._mousePos.y, this._mouseButtonMask);
-                    Log.Debug(`Secondary mouse up ${this._mouseButtonMask}.`);
                     break;
                 case 'scroll':
                     coords = this._display.getServerRelativeCoordinates(event.data.screenIndex, event.data.args[0], event.data.args[1]);
@@ -4099,13 +4099,13 @@ export default class RFB extends EventTargetMixin {
             let w = this._sock.rQshift16();                       // width
             let h = this._sock.rQshift16();                       // height
             if (i == 0) {
-                this._screenIndex = sI;
+                this._screenIndex = 0;
                 this._screenFlags = this._sock.rQshiftBytes(4); // flags
             } else {
                 this._sock.rQskipBytes(4);
             }
 
-            this._display.applyServerResolution(w, h, sI);
+            this._display.applyServerResolution(w, h, i);
             console.log(`Server screen ${sI} with resolution ${w}x${h} at ${x}x${y}`);
         }
 
@@ -4200,6 +4200,16 @@ export default class RFB extends EventTargetMixin {
         // Adjust the visible viewport based on the new dimensions
         this._updateClip();
         this._updateScale();
+
+        /*
+        if (this._scaleViewport && this._clipViewport) {
+            this._updateClip();
+        }
+        this._updateScale();
+        if (!this._scaleViewport && this._clipViewport) {
+            this._updateClip();
+        }
+        */
 
         this._updateContinuousUpdates();
     }
