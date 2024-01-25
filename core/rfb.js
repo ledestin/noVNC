@@ -1852,13 +1852,15 @@ export default class RFB extends EventTargetMixin {
                     this._mousePos = { 'x': coords[0], 'y': coords[1] };
                     this._mouseButtonMask |= event.data.args[2];
                     RFB.messages.pointerEvent(this._sock, this._mousePos.x, this._mousePos.y, this._mouseButtonMask);
+                    Log.Debug(`Secondary mouse down ${this._mouseButtonMask}.`);
                     break;
                 case 'mouseup':
                     coords = this._display.getServerRelativeCoordinates(event.data.screenIndex, event.data.args[0], event.data.args[1]);
                     this._mouseLastScreenIndex = event.data.screenIndex;
                     this._mousePos = { 'x': coords[0], 'y': coords[1] };
-                    this._mouseButtonMask &= event.data.args[2];
+                    this._mouseButtonMask &= ~event.data.args[2];
                     RFB.messages.pointerEvent(this._sock, this._mousePos.x, this._mousePos.y, this._mouseButtonMask);
+                    Log.Debug(`Secondary mouse up ${this._mouseButtonMask}.`);
                     break;
                 case 'scroll':
                     coords = this._display.getServerRelativeCoordinates(event.data.screenIndex, event.data.args[0], event.data.args[1]);
