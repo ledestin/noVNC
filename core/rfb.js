@@ -1903,8 +1903,9 @@ export default class RFB extends EventTargetMixin {
                             this.scaleViewport = event.data.args[2];
                             this.resizeSession = event.data.args[3];
                             this.videoQuality = event.data.args[4];
-                            this._forcedResolutionX = event.data.args[5];
-                            this._forcedResolutionY = event.data.args[6];
+                            //TODO: add support for forced static resolution for multiple monitors
+                            //this._forcedResolutionX = event.data.args[5];
+                            //this._forcedResolutionY = event.data.args[6];
 
                             //TODO, do we need to do this twice
                             this.scaleViewport = event.data.args[3];

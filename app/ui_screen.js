@@ -159,12 +159,13 @@ const UI = {
 
         UI.rfb.addEventListener("connect", UI.connectFinished);
         //UI.rfb.addEventListener("disconnect", UI.disconnectFinished);
-        UI.rfb.forcedResolutionX = UI.getSetting('forced_resolution_x', false);
-        UI.rfb.forcedResolutionY = UI.getSetting('forced_resolution_y', false);
+        //TODO: add support for forced static resolution for multiple monitors
+        //UI.rfb.forcedResolutionX = UI.getSetting('forced_resolution_x', false);
+        //UI.rfb.forcedResolutionY = UI.getSetting('forced_resolution_y', false);
         const resize_setting = UI.getSetting('resize', false, 'remote');
         UI.rfb.clipViewport = resize_setting !== 'off';
         UI.rfb.scaleViewport = resize_setting === 'scale';
-        UI.rfb.resizeSession = resize_setting === 'remote' || UI.rfb.forcedResolutionX && UI.rfb.forcedResolutionY;
+        UI.rfb.resizeSession = resize_setting === 'remote';
         UI.rfb.qualityLevel = parseInt(UI.getSetting('quality'));
         UI.rfb.dynamicQualityMin = parseInt(UI.getSetting('dynamic_quality_min'));
         UI.rfb.dynamicQualityMax = parseInt(UI.getSetting('dynamic_quality_max'));
