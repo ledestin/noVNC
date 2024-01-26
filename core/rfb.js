@@ -663,9 +663,20 @@ export default class RFB extends EventTargetMixin {
     }
 
     get forcedResolutionX() { return this._forcedResolutionX; }
-    set forcedResolutionX(value) {this._forcedResolutionX = value;}
+    set forcedResolutionX(value) {
+        if (value !== this._forcedResolutionX) {
+            this._forcedResolutionX = value;
+            this._pendingApplyResolutionChange = true;
+        }
+    }
+
     get forcedResolutionY() { return this._forcedResolutionY; }
-    set forcedResolutionY(value) {this._forcedResolutionY = value;}
+    set forcedResolutionY(value) {
+        if (value !== this._forcedResolutionY) {
+            this._forcedResolutionY = value;
+            this._pendingApplyResolutionChange = true;
+        }
+    }
 
     get qualityLevel() {
         return this._qualityLevel;
@@ -848,7 +859,7 @@ export default class RFB extends EventTargetMixin {
                     this.refreshSecondaryDisplays();
                 } 
 
-                if (this._resizeSession) {
+                if (this._resizeSession || (this._forcedResolutionX && this._forcedResolutionY)) {
                     this._screenSize();
                     this.dispatchEvent(new CustomEvent("screenregistered", {}));
                     clearTimeout(this._resizeTimeout);
@@ -874,7 +885,7 @@ export default class RFB extends EventTargetMixin {
                 }
             }
 
-            if (this._resizeSession) {
+            if (this._resizeSession || (this._forcedResolutionX && this._forcedResolutionY)) {
                 this._requestRemoteResize();
             }
         }
@@ -1575,8 +1586,10 @@ export default class RFB extends EventTargetMixin {
         this._resizeTimeout = null;
 
         if (this._isPrimaryDisplay) {
-            if (!this._resizeSession || this._viewOnly ||
-                !this._supportsSetDesktopSize) {
+            if (
+                (this._viewOnly || !this._supportsSetDesktopSize) ||
+                (!this._resizeSession && !this._forcedResolutionX && !this._forcedResolutionY)
+            ) {
                 return;
             }
 

@@ -263,7 +263,8 @@ export default class Display {
             (
                 disableScaling ||
                 (this._screens[i].serverReportedWidth !== this._screens[i].serverWidth || this._screens[i].serverReportedHeight !== this._screens[i].serverHeight)
-            )
+            ) && 
+            (!max_width && !max_height)
         ) {
             height = this._screens[i].serverReportedHeight;
             width = this._screens[i].serverReportedWidth;

@@ -1863,11 +1863,20 @@ const UI = {
         const resize_setting = UI.getSetting('resize');
         UI.rfb.clipViewport = resize_setting !== 'off';
         UI.rfb.scaleViewport = resize_setting === 'scale';
-        UI.rfb.resizeSession = resize_setting === 'remote' || UI.rfb.forcedResolutionX && UI.rfb.forcedResolutionY;
+        UI.rfb.resizeSession = resize_setting === 'remote';
         UI.rfb.idleDisconnect = UI.getSetting('idle_disconnect');
         UI.rfb.videoQuality = UI.getSetting('video_quality');
         UI.rfb.enableWebP = UI.getSetting('enable_webp');
         UI.rfb.enableHiDpi = UI.getSetting('enable_hidpi');
+
+        if (UI.rfb.resizeSession) {
+            UI.rfb.forcedResolutionX = null;
+            UI.rfb.forcedResolutionY = null;
+        } else {
+            UI.rfb.forcedResolutionX = UI.getSetting('forced_resolution_x', false);
+            UI.rfb.forcedResolutionY = UI.getSetting('forced_resolution_y', false);
+        }
+
         UI.rfb.updateConnectionSettings();
     },
 
