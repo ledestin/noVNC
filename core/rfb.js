@@ -848,11 +848,12 @@ export default class RFB extends EventTargetMixin {
                     this.refreshSecondaryDisplays();
                 } 
 
-                this._screenSize();
-                this.dispatchEvent(new CustomEvent("screenregistered", {}));
-                clearTimeout(this._resizeTimeout);
-                this._resizeTimeout = setTimeout(this._requestRemoteResize.bind(this), 500);
-                
+                if (this._resizeSession) {
+                    this._screenSize();
+                    this.dispatchEvent(new CustomEvent("screenregistered", {}));
+                    clearTimeout(this._resizeTimeout);
+                    this._resizeTimeout = setTimeout(this._requestRemoteResize.bind(this), 500);
+                }
             }
 
             if (this._pendingApplyEncodingChanges) {
@@ -873,7 +874,9 @@ export default class RFB extends EventTargetMixin {
                 }
             }
 
-            this._requestRemoteResize();
+            if (this._resizeSession) {
+                this._requestRemoteResize();
+            }
         }
         
     }
@@ -1513,6 +1516,7 @@ export default class RFB extends EventTargetMixin {
         // If the window resized then our screen element might have
         // as well. Update the viewport dimensions.
         window.requestAnimationFrame(() => {
+            this._screenSize();
             this._updateClip();
             this._updateScale();
         });
@@ -1558,7 +1562,6 @@ export default class RFB extends EventTargetMixin {
         if (!this._scaleViewport) {
             this._display.scale = 1.0;
         } else {
-            this._display.applyServerResolution(0, 0, 0);
             const size = this._screenSize();
             this._display.autoscale(size.screens[0].width, size.screens[0].height, size.screens[0].scale);
         }
