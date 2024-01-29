@@ -2045,10 +2045,7 @@ export default class RFB extends EventTargetMixin {
                 }
                 
             }
-        } else {
-            Log.Debug("Mouse left Window");
-            Log.Debug(ev);
-        }
+        } 
     }
 
     _handleMouse(ev) {
