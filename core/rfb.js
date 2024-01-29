@@ -4124,6 +4124,10 @@ export default class RFB extends EventTargetMixin {
             switch (this._FBU.y) {
                 case 1:
                     msg = "Resize is administratively prohibited";
+                    this._resizeSession = false;
+                    this._clipViewport = false;
+                    this._scaleViewport = false;
+                    this.updateConnectionSettings();
                     break;
                 case 2:
                     msg = "Out of resources";
