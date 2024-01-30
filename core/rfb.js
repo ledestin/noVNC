@@ -845,6 +845,7 @@ export default class RFB extends EventTargetMixin {
             }
 
             if (this._pendingApplyResolutionChange) {
+                this._screenSize();
                 // Scaling trumps clipping, so we may need to adjust
                 // clipping when enabling or disabling scaling
                 if (this._scaleViewport && this._clipViewport) {
@@ -860,7 +861,6 @@ export default class RFB extends EventTargetMixin {
                 } 
 
                 if (this._resizeSession || (this._forcedResolutionX && this._forcedResolutionY)) {
-                    this._screenSize();
                     this.dispatchEvent(new CustomEvent("screenregistered", {}));
                     clearTimeout(this._resizeTimeout);
                     this._resizeTimeout = setTimeout(this._requestRemoteResize.bind(this), 500);
