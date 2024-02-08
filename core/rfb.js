@@ -1801,6 +1801,7 @@ export default class RFB extends EventTargetMixin {
     _handleControlMessage(event) {
         if (event.data.eventType == 'lostFocus') {
             this._clickEligible = true;
+            return;
         }
         if (this._isPrimaryDisplay) {
             // Secondary to Primary screen message
