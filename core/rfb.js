@@ -1470,6 +1470,7 @@ export default class RFB extends EventTargetMixin {
                 // move to simulate a left click. We wait for the next mouse move because we need accurate x,y coords
                 if (this._clickEligible) {
                     this._sendLeftClickonNextMove = true;
+                    this._clickEligible = false;
                 }
             } else {
                 Log.Debug("Window focused while user switched between tabs.");
