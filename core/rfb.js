@@ -43,10 +43,6 @@ import { toSignedRelative16bit } from './util/int.js';
 const DISCONNECT_TIMEOUT = 3;
 const DEFAULT_BACKGROUND = 'rgb(40, 40, 40)';
 
-var _videoQuality =  2;
-var _enableWebP = false;
-var _enableQOI = false;
-
 // Minimum wait (ms) between two mouse moves
 const MOUSE_MOVE_DELAY = 17; 
 
@@ -148,6 +144,8 @@ export default class RFB extends EventTargetMixin {
         this._useUdp = true;
         this._hiDpi = 'hiDpi' in options ? !!options.hiDpi : false;
         this._enableQOI = false;
+        this._videoQuality =  2;
+        this._enableWebP = false;
         this.TransitConnectionStates = {
             Tcp: Symbol("tcp"),
             Udp: Symbol("udp"),
@@ -177,6 +175,7 @@ export default class RFB extends EventTargetMixin {
         this._disconnTimer = null;      // disconnection timer
         this._resizeTimeout = null;     // resize rate limiting
         this._mouseMoveTimer = null;
+        this._forceFullFrameUpdateTimeout = null;
 
         // Decoder states
         this._decoders = {};
@@ -804,6 +803,8 @@ export default class RFB extends EventTargetMixin {
                 }
 
                 this._pendingApplyResolutionChange = true;
+            } else {
+                Log.Debug("Screen plan did not apply, no changes detected.");
             }
             
             return changes;
@@ -1448,6 +1449,7 @@ export default class RFB extends EventTargetMixin {
         this._display.dispose();
         clearTimeout(this._resizeTimeout);
         clearTimeout(this._mouseMoveTimer);
+        window.localStorage.removeItem('lastWindow')
         Log.Debug("<< RFB.disconnect");
     }
 
@@ -1459,15 +1461,18 @@ export default class RFB extends EventTargetMixin {
 
     _handleFocusChange(event) {
         this._resendClipboardNextUserDrivenEvent = true;
-
         if (event.type == 'focus' && event.currentTarget instanceof Window) {
 
             if (this._lastVisibilityState === 'visible') {
+                const lastWindow = window.localStorage.getItem('lastWindow')
                 Log.Debug("Window focused while user switched between windows.");
                 // added for multi-montiors
                 // as user moves from window to window, focus change loses a click, this marks the next mouse
                 // move to simulate a left click. We wait for the next mouse move because we need accurate x,y coords
-                this._sendLeftClickonNextMove = true;
+                if (lastWindow != event.currentTarget.name) {
+                    this._sendLeftClickonNextMove = true;
+                    window.localStorage.setItem('lastWindow', event.currentTarget.name)
+                }
             } else {
                 Log.Debug("Window focused while user switched between tabs.");
             }
@@ -1800,7 +1805,7 @@ export default class RFB extends EventTargetMixin {
                         ...event.data.details,
                         screenID: event.data.screenID
                     }
-                    let screenIndex = this._display.addScreen(event.data.screenID, event.data.width, event.data.height, event.data.pixelRatio, event.data.containerHeight, event.data.containerWidth, event.data.scale, event.data.serverWidth, event.data.serverHeight);
+                    let screenIndex = this._display.addScreen(event.data.screenID, event.data.width, event.data.height, event.data.pixelRatio, event.data.containerHeight, event.data.containerWidth, event.data.scale, event.data.serverWidth, event.data.serverHeight, event.data.x, event.data.y);
                     this._proxyRFBMessage('screenRegistrationConfirmed', [ this._display.screens[screenIndex].screenID, screenIndex ]);
                     this._sendEncodings();
                     clearTimeout(this._resizeTimeout);
@@ -1809,14 +1814,12 @@ export default class RFB extends EventTargetMixin {
                     Log.Info(`Secondary monitor (${event.data.screenID}) has been registered.`);
                     break;
                 case 'reattach':
-                    let changes = this._display.addScreen(event.data.screenID, event.data.width, event.data.height, event.data.pixelRatio, event.data.containerHeight, event.data.containerWidth, event.data.scale, event.data.serverWidth, event.data.serverHeight);
+                    let changes = this._display.addScreen(event.data.screenID, event.data.width, event.data.height, event.data.pixelRatio, event.data.containerHeight, event.data.containerWidth, event.data.scale, event.data.serverWidth, event.data.serverHeight, event.data.x, event.data.y);
                     
-                    if (changes) {
-                        clearTimeout(this._resizeTimeout);
-                        this._resizeTimeout = setTimeout(this._requestRemoteResize.bind(this), 500);
-                        this.dispatchEvent(new CustomEvent("screenregistered", {}));
-                        Log.Info(`Secondary monitor (${event.data.screenID}) has been reattached.`);
-                    }
+                    clearTimeout(this._resizeTimeout);
+                    this._resizeTimeout = setTimeout(this._requestRemoteResize.bind(this), 500);
+                    this.dispatchEvent(new CustomEvent("screenregistered", {}));
+                    Log.Info(`Secondary monitor (${event.data.screenID}) has been reattached.`);
                     break;
                 case 'unregister':
                     if (this._display.removeScreen(event.data.screenID)) {
@@ -2243,7 +2246,7 @@ export default class RFB extends EventTargetMixin {
 
         //Simulate a left click on focus change
         //this was added to aid multi-display, not requiring two clicks when switching between displays
-        if (this._sendLeftClickonNextMove) {
+        if (this._sendLeftClickonNextMove && this._display.screens.length > 1) {
             this._sendLeftClickonNextMove = false;
             this._handleMouseButton(this._mousePos.x, this._mousePos.y, true, 0x1);
             this._handleMouseButton(this._mousePos.x, this._mousePos.y, false, 0x1);
@@ -4137,6 +4140,14 @@ export default class RFB extends EventTargetMixin {
                      + msg);
         } else {
             this._resize(this._FBU.width, this._FBU.height);
+        }
+
+        // There are certain conditions with multi-monitor that warrent forcing a full frame update after a delay
+        if (this._display.screens.length > 1) {
+            clearTimeout(this._forceFullFrameUpdateTimeout);
+            this._forceFullFrameUpdateTimeout = setTimeout(function(){
+                RFB.messages.fbUpdateRequest(this._sock, false, 0, 0, this._fbWidth, this._fbHeight)
+            }.bind(this), 500);
         }
 
         return true;
