@@ -43,10 +43,6 @@ import { toSignedRelative16bit } from './util/int.js';
 const DISCONNECT_TIMEOUT = 3;
 const DEFAULT_BACKGROUND = 'rgb(40, 40, 40)';
 
-var _videoQuality =  2;
-var _enableWebP = false;
-var _enableQOI = false;
-
 // Minimum wait (ms) between two mouse moves
 const MOUSE_MOVE_DELAY = 17; 
 
@@ -148,6 +144,8 @@ export default class RFB extends EventTargetMixin {
         this._useUdp = true;
         this._hiDpi = 'hiDpi' in options ? !!options.hiDpi : false;
         this._enableQOI = false;
+        this._videoQuality =  2;
+        this._enableWebP = false;
         this.TransitConnectionStates = {
             Tcp: Symbol("tcp"),
             Udp: Symbol("udp"),
