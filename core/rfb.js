@@ -46,7 +46,6 @@ const DEFAULT_BACKGROUND = 'rgb(40, 40, 40)';
 var _videoQuality =  2;
 var _enableWebP = false;
 var _enableQOI = false;
-var _clickEligible = false;
 
 // Minimum wait (ms) between two mouse moves
 const MOUSE_MOVE_DELAY = 17; 
@@ -1451,6 +1450,7 @@ export default class RFB extends EventTargetMixin {
         this._display.dispose();
         clearTimeout(this._resizeTimeout);
         clearTimeout(this._mouseMoveTimer);
+        window.localStorage.removeItem('lastWindow')
         Log.Debug("<< RFB.disconnect");
     }
 
@@ -1462,28 +1462,22 @@ export default class RFB extends EventTargetMixin {
 
     _handleFocusChange(event) {
         this._resendClipboardNextUserDrivenEvent = true;
-
         if (event.type == 'focus' && event.currentTarget instanceof Window) {
 
             if (this._lastVisibilityState === 'visible') {
+                const lastWindow = window.localStorage.getItem('lastWindow')
                 Log.Debug("Window focused while user switched between windows.");
                 // added for multi-montiors
                 // as user moves from window to window, focus change loses a click, this marks the next mouse
                 // move to simulate a left click. We wait for the next mouse move because we need accurate x,y coords
-                if (this._clickEligible) {
+                if (lastWindow != event.currentTarget.name) {
                     this._sendLeftClickonNextMove = true;
-                    this._clickEligible = false;
+                    window.localStorage.setItem('lastWindow', event.currentTarget.name)
                 }
             } else {
                 Log.Debug("Window focused while user switched between tabs.");
             }
             
-        } else if (event.type == 'blur') {
-            // Tell all windows we lost focus
-            let message = {
-                eventType: 'lostFocus'
-            }     
-            this._controlChannel.postMessage(message);
         }
 
         if (document.visibilityState === "visible" && this._lastVisibilityState === "hidden") {
@@ -1802,10 +1796,6 @@ export default class RFB extends EventTargetMixin {
     }
 
     _handleControlMessage(event) {
-        if (event.data.eventType == 'lostFocus') {
-            this._clickEligible = true;
-            return;
-        }
         if (this._isPrimaryDisplay) {
             // Secondary to Primary screen message
             let size;
