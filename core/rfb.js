@@ -12,7 +12,7 @@ import { toUnsigned32bit, toSigned32bit } from './util/int.js';
 import * as Log from './util/logging.js';
 import { encodeUTF8, decodeUTF8, uuidv4 } from './util/strings.js';
 import { hashUInt8Array } from './util/int.js';
-import { dragThreshold, supportsCursorURIs, isTouchDevice, isWindows, isMac, isIOS } from './util/browser.js';
+import { dragThreshold, supportsCursorURIs, isTouchDevice, isWindows, isMac, isIOS, isDesktop } from './util/browser.js';
 import { clientToElement } from './util/element.js';
 import { setCapture } from './util/events.js';
 import EventTargetMixin from './util/eventtarget.js';
@@ -2224,7 +2224,7 @@ export default class RFB extends EventTargetMixin {
 
         // With multiple displays, it is possible to end up in a state where we lost the mouseup event
         // If a mouse move indicates no buttons are down but the current state shows something down, lets clear the plate
-        if (this._mouseButtonMask !== 0 && !down && !simulated) {
+        if (this._display.screens.length > 1 && this._mouseButtonMask !== 0 && !down && !simulated && isDesktop()) {
             this._mouseButtonMask = 0;
             Log.Debug('Mouse event button down mismatch with current mask, resetting mask to 0.')
         }
