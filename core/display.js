@@ -954,7 +954,7 @@ export default class Display {
                     if (a.img.complete) {
                         this.drawImage(a.img, pos.x, pos.y, a.width, a.height);
                     } else {
-                        if (this._syncFrameQueue.length > 1000) {
+                        if (this._syncFrameQueue.length > 5000) {
                             this._syncFrameQueue.shift();
                             this._droppedRects++;
                         } else {
