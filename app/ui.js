@@ -274,7 +274,7 @@ const UI = {
         UI.initSetting('enable_hidpi', false);
         UI.toggleKeyboardControls();
 
-        if (WebUtil.isInsideKasmVDI()) {
+        if ((WebUtil.isInsideKasmVDI()) && (! WebUtil.getConfigVar('show_control_bar'))) {
             UI.initSetting('clipboard_up', false);
             UI.initSetting('clipboard_down', false);
             UI.initSetting('clipboard_seamless', false);
@@ -283,7 +283,11 @@ const UI = {
         } else {
             UI.initSetting('clipboard_up', true);
             UI.initSetting('clipboard_down', true);
-            UI.initSetting('clipboard_seamless', true);
+            if (isFirefox() || isSafari()) {
+                UI.initSetting('clipboard_seamless', false);
+            } else {
+                UI.initSetting('clipboard_seamless', true);
+            }
             UI.initSetting('enable_webp', true);
             UI.initSetting('resize', 'remote');
         }
@@ -1459,7 +1463,7 @@ const UI = {
         UI.rfb.antiAliasing = UI.getSetting('anti_aliasing');
         UI.rfb.clipboardUp = UI.getSetting('clipboard_up');
         UI.rfb.clipboardDown = UI.getSetting('clipboard_down');
-        UI.rfb.clipboardSeamless = UI.getSetting('clipboard_seamless') && supportsBinaryClipboard();
+        UI.rfb.clipboardSeamless = UI.getSetting('clipboard_seamless');
         UI.rfb.keyboard.enableIME = UI.getSetting('enable_ime');
         UI.rfb.clipboardBinary = supportsBinaryClipboard() && UI.rfb.clipboardSeamless;
         UI.rfb.enableWebRTC = UI.getSetting('enable_webrtc');
