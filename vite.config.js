@@ -34,6 +34,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: './index.html',
+        screen: './screen.html',
       },
       output: {
         entryFileNames: '[name].bundle.js'
