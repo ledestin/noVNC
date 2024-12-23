@@ -23,7 +23,7 @@
     "test": "karma start karma.conf.js",
     "prepublish": "node ./utils/use_require.js --clean",
     "serve": "vite",
-    "build": "vite build && mkdir -p dist/app && cp -rx app/locale dist/app && cp package.json dist/",
+    "build": "vite build && mkdir -p dist/app && cp -ax app/locale dist/app && cp package.json dist/",
     "preview": "vite preview"
   },
   "repository": {
