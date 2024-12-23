@@ -25,6 +25,9 @@ window.updateSetting = (name, value) => {
     }
 }
 
+import '@interactjs/pointer-events'
+import '@interactjs/actions/drag'
+import interact from '@interactjs/interact';
 import "core-js/stable";
 import "regenerator-runtime/runtime";
 import * as Log from '../core/util/logging.js';
