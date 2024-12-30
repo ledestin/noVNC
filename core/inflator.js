@@ -6,8 +6,8 @@
  * See README.md for usage and integration instructions.
  */
 
-import { inflateInit, inflate, inflateReset } from "../node_modules/pako/lib/zlib/inflate.js";
-import ZStream from "../node_modules/pako/lib/zlib/zstream.js";
+import { inflateInit, inflate, inflateReset } from "pako/lib/zlib/inflate.js";
+import ZStream from "pako/lib/zlib/zstream.js";
 
 export default class Inflate {
     constructor() {

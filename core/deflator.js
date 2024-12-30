@@ -6,8 +6,8 @@
  * See README.md for usage and integration instructions.
  */
 
-import { deflateInit, deflate, Z_FULL_FLUSH } from "../node_modules/pako/lib/zlib/deflate.js";
-import ZStream from "../node_modules/pako/lib/zlib/zstream.js";
+import { deflateInit, deflate, Z_FULL_FLUSH } from "pako/lib/zlib/deflate.js";
+import ZStream from "pako/lib/zlib/zstream.js";
 
 export default class Deflator {
     constructor() {

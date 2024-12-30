@@ -9,10 +9,10 @@ export default defineConfig({
   base: '',
   resolve: {
     alias: [
-      {
-        find: '@',
-        replacement: path.resolve(__dirname,'src')
-      }
+        {
+            find: /^~(.*)$/,
+            replacement: 'node_modules/$1',
+        },
     ],
     extensions: [
       '.mjs',

@@ -11,3 +11,4 @@ recordings
 *~
 noVNC-*.tgz
 /dist
+/index.html
