@@ -41,7 +41,6 @@ import Keyboard from "../core/input/keyboard.js";
 import RFB from "../core/rfb.js";
 import { MouseButtonMapper, XVNC_BUTTONS } from "../core/mousebuttonmapper.js";
 import * as WebUtil from "./webutil.js";
-import Display from "../core/display.js";
 
 const PAGE_TITLE = "KasmVNC";
 
