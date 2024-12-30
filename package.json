@@ -23,7 +23,7 @@
     "test": "karma start karma.conf.js",
     "prepublish": "node ./utils/use_require.js --clean",
     "serve": "vite",
-    "build": "vite build && mkdir -p dist/app dist/core/decoders/qoi && cp -a app/locale dist/app && cp package.json dist/ && cp core/decoders/qoi/qoi_viewer_bg.wasm dist/core/decoders/qoi",
+    "build": "vite build && mkdir -p dist/app dist/core/decoders/qoi && cp -a app/locale dist/app && cp package.json dist/ && cp core/decoders/qoi/qoi_viewer_bg.wasm dist/core/decoders/qoi && cp dist/vnc.html dist/index.html",
     "preview": "vite preview"
   },
   "repository": {

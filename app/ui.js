@@ -41,6 +41,7 @@ import Keyboard from "../core/input/keyboard.js";
 import RFB from "../core/rfb.js";
 import { MouseButtonMapper, XVNC_BUTTONS } from "../core/mousebuttonmapper.js";
 import * as WebUtil from "./webutil.js";
+import Display from "../core/display.js";
 
 const PAGE_TITLE = "KasmVNC";
 
@@ -268,6 +269,7 @@ const UI = {
         UI.initSetting('prefer_local_cursor', true);
         UI.initSetting('toggle_control_panel', false);
         UI.initSetting('enable_perf_stats', false);
+        UI.initSetting('enable_threading', true);
         UI.initSetting('virtual_keyboard_visible', false);
         UI.initSetting('enable_ime', false);
         UI.initSetting('enable_webrtc', false);
@@ -532,6 +534,7 @@ const UI = {
         UI.addClickHandle('noVNC_settings_button', UI.toggleSettingsPanel);
 
         document.getElementById("noVNC_setting_enable_perf_stats").addEventListener('click', UI.showStats);
+        document.getElementById("noVNC_setting_enable_threading").addEventListener('click', UI.threading);
         document.getElementById("noVNC_auto_placement").addEventListener('change', UI.setAutoPlacement);
 
         UI.addSettingChangeHandler('encrypt');
@@ -600,6 +603,8 @@ const UI = {
         UI.addSettingChangeHandler('enable_webrtc', UI.toggleWebRTC);
         UI.addSettingChangeHandler('enable_hidpi');
         UI.addSettingChangeHandler('enable_hidpi', UI.enableHiDpi);
+        UI.addSettingChangeHandler('enable_threading');
+        UI.addSettingChangeHandler('enable_threading', UI.threading);
     },
 
     addFullscreenHandlers() {
@@ -743,6 +748,17 @@ const UI = {
             UI.statsInterval = null;
         }
         
+    },
+
+    threading() {
+        if (UI.rfb) {
+            if (UI.getSetting('enable_threading')) {
+                UI.rfb.threading = true;
+            } else {
+                UI.rfb.threading = false;
+            }
+        }
+        UI.saveSetting('enable_threading');
     },
 
     showStatus(text, statusType, time, kasm = false) {
@@ -1485,6 +1501,7 @@ const UI = {
         UI.rfb.clipboardBinary = supportsBinaryClipboard() && UI.rfb.clipboardSeamless;
         UI.rfb.enableWebRTC = UI.getSetting('enable_webrtc');
         UI.rfb.enableHiDpi = UI.getSetting('enable_hidpi');
+        UI.rfb.threading = UI.getSetting('enable_threading');
         UI.rfb.mouseButtonMapper = UI.initMouseButtonMapper();
         if (UI.rfb.videoQuality === 5) {
             UI.rfb.enableQOI = true;
@@ -1781,6 +1798,10 @@ const UI = {
                     UI.forceSetting('enable_perf_stats', event.data.value, false);
                     UI.showStats();
                     break;
+                case 'set_threading':
+                    UI.forceSetting('enable_threading', event.data.value, false);
+                    UI.threading();
+                    break;
                 case 'set_idle_timeout':
                     //message value in seconds
                     const idle_timeout_min = Math.ceil(event.data.value / 60);
@@ -1794,6 +1815,10 @@ const UI = {
                     break;
                 case 'control_displays':
                     parent.postMessage({ action: 'can_control_displays', value: true}, '*' );
+                    break;
+                case 'enable_threading':
+                    UI.forceSetting('enable_threading', event.data.value, false);
+                    UI.threading();
                     break;
                 case 'terminate':
                     //terminate a session, different then disconnect in that it is assumed KasmVNC will be shutdown
@@ -1895,6 +1920,7 @@ const UI = {
         UI.rfb.videoQuality = UI.getSetting('video_quality');
         UI.rfb.enableWebP = UI.getSetting('enable_webp');
         UI.rfb.enableHiDpi = UI.getSetting('enable_hidpi');
+        UI.rfb.threading = UI.getSetting('enable_threading');
 
         if (UI.rfb.resizeSession) {
             UI.rfb.forcedResolutionX = null;
@@ -2548,6 +2574,7 @@ const UI = {
             UI.rfb.videoQuality = parseInt(UI.getSetting('video_quality'));
             UI.rfb.enableQOI = enable_qoi;
             UI.rfb.enableHiDpi = UI.getSetting('enable_hidpi');
+            UI.rfb.threading = UI.getSetting('enable_threading');
 
             // Gracefully update settings server side
             UI.rfb.updateConnectionSettings();

@@ -111,6 +111,7 @@ export default class Display {
             x2: 0,
             y2: 0
         }];
+        this._threading = true;
 
         //optional offscreen canvas
         this._enableCanvasBuffer = false;
@@ -175,6 +176,11 @@ export default class Display {
     get scale() { return this._scale; }
     set scale(scale) {
         this._rescale(scale);
+    }
+
+    get threading() { return this._threading; }
+    set threading(bool) {
+        this._threading = bool;
     }
 
     get clipViewport() { return this._clipViewport; }
@@ -706,12 +712,35 @@ export default class Display {
         }
     }
 
+    _handleVidChunk(data, chunk) {
+        data[6].close();
+        data[7] = null;
+        let rect = {
+            'type': 'vid',  
+            'img': chunk.image,
+            'x': data[0],
+            'y': data[1],
+            'width': data[2],
+            'height': data[3],
+            'frame_id': data[4]
+        }
+        data[5]._processRectScreens(rect);
+        data[5]._asyncRenderQPush(rect);
+    }
+
     imageRect(x, y, width, height, mime, arr, frame_id) {
         /* The internal logic cannot handle empty images, so bail early */
         if ((width === 0) || (height === 0)) {
             return;
         }
-        
+
+        // Use threaded image decoder
+        if ((ImageDecoder) && (this._threading)) {
+            let imageDecoder = new ImageDecoder({ data: arr, type: mime });
+            let vidFrame = imageDecoder.decode().then(this._handleVidChunk.bind(null,[x,y,width,height,frame_id,this,imageDecoder,arr]));
+            return;
+        }
+
         let rect = {
             'type': 'img',
             'img': null,
@@ -962,6 +991,10 @@ export default class Display {
                         }
                     }
                     break;
+                case 'vid':
+                    this.drawImage(a.img, pos.x, pos.y, a.width, a.height);
+                    a.img.close();
+                    break;
                 default:
                     this._syncFrameQueue.shift();
                     continue;
@@ -1169,6 +1202,10 @@ export default class Display {
                                 break;
                             case 'img':
                                 this.drawImage(a.img, screenLocation.x, screenLocation.y, a.width, a.height);
+                                break;
+                            case 'vid': 
+                                this.drawImage(a.img, screenLocation.x, screenLocation.y, a.width, a.height);
+                                a.img.close();
                                 break;
                             default:
                                 continue;
