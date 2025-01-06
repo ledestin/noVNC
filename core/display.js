@@ -112,6 +112,7 @@ export default class Display {
             y2: 0
         }];
         this._threading = true;
+        this._primaryChannel = null;
 
         //optional offscreen canvas
         this._enableCanvasBuffer = false;
@@ -713,19 +714,23 @@ export default class Display {
     }
 
     _handleVidChunk(data, chunk) {
-        data[6].close();
-        data[7] = null;
-        let rect = {
-            'type': 'vid',  
-            'img': chunk.image,
-            'x': data[0],
-            'y': data[1],
-            'width': data[2],
-            'height': data[3],
-            'frame_id': data[4]
+        let rect = data[0];
+        let that = data[1];
+        let imageDecoder = data[2];
+        imageDecoder.close();
+        if (!rect.inSecondary) {
+            rect.img = chunk.image;
+            rect.vidType = 'frame';
+        } else {
+            let opt = {format: 'RGBA'};
+            let size = chunk.image.allocationSize(opt);
+            let buf = new ArrayBuffer(size);
+            chunk.image.copyTo(buf, opt);
+            rect.img = buf;
+            rect.vidType = 'buffer';
+            chunk.image.close();
         }
-        data[5]._processRectScreens(rect);
-        data[5]._asyncRenderQPush(rect);
+        that._asyncRenderQPush(rect);
     }
 
     imageRect(x, y, width, height, mime, arr, frame_id) {
@@ -737,7 +742,18 @@ export default class Display {
         // Use threaded image decoder
         if ((ImageDecoder) && (this._threading)) {
             let imageDecoder = new ImageDecoder({ data: arr, type: mime });
-            let vidFrame = imageDecoder.decode().then(this._handleVidChunk.bind(null,[x,y,width,height,frame_id,this,imageDecoder,arr]));
+            let rect = {
+                'type': 'vid',  
+                'img': null,
+                'x': x,
+                'y': y,
+                'width': width,
+                'height': height,
+                'frame_id': frame_id,
+                'mime': mime
+            }
+            this._processRectScreens(rect);
+            imageDecoder.decode().then(this._handleVidChunk.bind(null,[rect,this,imageDecoder]));
             return;
         }
 
@@ -813,6 +829,9 @@ export default class Display {
     }
 
     blitImage(x, y, width, height, arr, offset, frame_id, fromQueue) {
+        if (!ArrayBuffer.isView(arr)) {
+            arr = new Uint8Array(arr);
+        }
         if (!fromQueue) {
             // NB(directxman12): it's technically more performant here to use preallocated arrays,
             // but it's a lot of extra work for not a lot of payoff -- if we're using the render queue,
@@ -920,6 +939,9 @@ export default class Display {
                     rect.screenLocations[0].screenIndex = 0;
                     switch (rect.type) {
                         case 'img':
+                            rect.img = new Image();
+                            rect.img.src = rect.src;
+                            break;
                         case '_img':
                             rect.img = new Image();
                             rect.img.src = rect.src;
@@ -992,8 +1014,12 @@ export default class Display {
                     }
                     break;
                 case 'vid':
-                    this.drawImage(a.img, pos.x, pos.y, a.width, a.height);
-                    a.img.close();
+                    if (a.vidType == 'buffer') {
+                        this.blitImage(pos.x, pos.y, a.width, a.height, a.img, 0, a.frame_id, true);
+                    } else {
+                        this.drawImage(a.img, pos.x, pos.y, a.width, a.height);
+                        a.img.close();
+                    }
                     break;
                 default:
                     this._syncFrameQueue.shift();
@@ -1203,9 +1229,12 @@ export default class Display {
                             case 'img':
                                 this.drawImage(a.img, screenLocation.x, screenLocation.y, a.width, a.height);
                                 break;
-                            case 'vid': 
-                                this.drawImage(a.img, screenLocation.x, screenLocation.y, a.width, a.height);
-                                a.img.close();
+                            case 'vid':
+                                if (a.vidType == 'buffer') {
+                                    this.blitImage(screenLocation.x, screenLocation.y, a.width, a.height, a.img, 0, a.frame_id, true);
+                                } else {
+                                    this.drawImage(a.img, screenLocation.x, screenLocation.y, a.width, a.height);
+                                }
                                 break;
                             default:
                                 continue;
@@ -1217,11 +1246,73 @@ export default class Display {
                             case 'transparent':
                             case 'flip':
                                 break;
-                            default:
+                            case 'vid':
                                 secondaryScreenRects++;
-                                a.img = null;
                                 if (this._screens[screenLocation.screenIndex].channel) {
-                                    this._screens[screenLocation.screenIndex].channel.postMessage({ eventType: 'rect', rect: a, screenLocationIndex: sI });
+                                    this._screens[screenLocation.screenIndex].channel.postMessage({
+                                        eventType: 'rect',
+                                        rect: {
+                                           'type': 'vid',
+                                           'img': a.img,
+                                           'x': a.x,
+                                           'y': a.y,
+                                           'width': a.width,
+                                           'height': a.height,
+                                           'frame_id': a.frame_id,
+                                           'screenLocations': a.screenLocations,
+                                           'vidType': a.vidType
+                                        },
+                                        screenLocationIndex: sI
+                                    }, [a.img]);
+                                }
+                                break;
+                            case 'blit':
+                                secondaryScreenRects++;
+                                if (this._screens[screenLocation.screenIndex].channel) {
+                                    this._screens[screenLocation.screenIndex].channel.postMessage({
+                                        eventType: 'rect',
+                                        rect: {
+                                           'type': 'blit',
+                                           'data': a.data,
+                                           'img': null,
+                                           'x': a.x,
+                                           'y': a.y,
+                                           'width': a.width,
+                                           'height': a.height,
+                                           'frame_id': a.frame_id,
+                                           'screenLocations': a.screenLocations
+                                        },
+                                        screenLocationIndex: sI
+                                    }, [a.data]);
+                                }
+                                break;
+                            case 'img':
+                                secondaryScreenRects++;
+                                if (this._screens[screenLocation.screenIndex].channel) {
+                                    this._screens[screenLocation.screenIndex].channel.postMessage({
+                                        eventType: 'rect', 
+                                        rect: {
+                                           'type': 'img',
+                                           'img': null,
+                                           'x': a.x,
+                                           'y': a.y,
+                                           'width': a.width,
+                                           'height': a.height,
+                                           'frame_id': a.frame_id,
+                                           'screenLocations': a.screenLocations,
+                                           'src' : a.src
+                                        },
+                                        screenLocationIndex: sI
+                                    }, [a.src]);
+                                }
+                                break;
+                            default:
+                                if (this._screens[screenLocation.screenIndex].channel) {
+                                    this._screens[screenLocation.screenIndex].channel.postMessage({
+                                        eventType: 'rect',
+                                        rect: a,
+                                        screenLocationIndex: sI
+                                    });
                                 }
                         }
                     }
