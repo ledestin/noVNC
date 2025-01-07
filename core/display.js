@@ -12,6 +12,7 @@ import Base64 from "./base64.js";
 import { toSigned32bit } from './util/int.js';
 import { isWindows } from './util/browser.js';
 import { uuidv4 } from './util/strings.js';
+import sharedWorker from './displayworker.js?sharedworker';
 
 export default class Display {
     constructor(target, isPrimaryDisplay) {
@@ -119,6 +120,16 @@ export default class Display {
         this._backbuffer = document.createElement('canvas');
         this._drawCtx = this._backbuffer.getContext('2d');
         this._damageBounds = { left: 0, top: 0, right: this._backbuffer.width, bottom: this._backbuffer.height };
+
+        // Data Brokers for secondary display
+        this._dataBroker = new sharedWorker();
+        this._dataBroker.port.start();
+        if (!this._isPrimaryDisplay) {
+            this._dataBroker.port.postMessage({register: this._screenID});
+        } else {
+            this._dataBroker.port.postMessage({register: 'primary'});
+        }
+        this._dataBroker.port.addEventListener('message', this._handleDisplayWorkerMessage.bind(this));
 
         // ===== EVENT HANDLERS =====
 
@@ -929,6 +940,24 @@ export default class Display {
         }
     }
 
+    _handleDisplayWorkerMessage(event) {
+        if (event.data) {
+            switch (event.data.eventType) {
+                case 'rect':
+                    let rect = event.data.rect; 
+                    //overwrite screen locations when received on the secondary display
+                    rect.screenLocations = [ rect.screenLocations[event.data.screenLocationIndex] ]
+                    rect.screenLocations[0].screenIndex = 0;
+                    this._syncFrameQueue.push(rect);
+                    if (this._syncFrameQueue.length > 5000) {
+                        this._syncFrameQueue.shift();
+                        this._droppedRects++;
+                    }
+                    break;
+            }
+
+        }
+    }
     _handleSecondaryDisplayMessage(event) {
         if (!this._isPrimaryDisplay && event.data) {
             switch (event.data.eventType) {
@@ -1248,43 +1277,40 @@ export default class Display {
                                 break;
                             case 'vid':
                                 secondaryScreenRects++;
-                                if (this._screens[screenLocation.screenIndex].channel) {
-                                    this._screens[screenLocation.screenIndex].channel.postMessage({
-                                        eventType: 'rect',
-                                        rect: {
-                                           'type': 'vid',
-                                           'img': a.img,
-                                           'x': a.x,
-                                           'y': a.y,
-                                           'width': a.width,
-                                           'height': a.height,
-                                           'frame_id': a.frame_id,
-                                           'screenLocations': a.screenLocations,
-                                           'vidType': a.vidType
-                                        },
-                                        screenLocationIndex: sI
-                                    }, [a.img]);
-                                }
+                                this._dataBroker.port.postMessage({
+                                    eventType: 'rect',
+                                    rect: {
+                                       'type': 'vid',
+                                       'img': a.img,
+                                       'x': a.x,
+                                       'y': a.y,
+                                       'width': a.width,
+                                       'height': a.height,
+                                       'frame_id': a.frame_id,
+                                       'screenLocations': a.screenLocations,
+                                       'vidType': a.vidType
+                                    },
+                                    screenLocationIndex: sI
+                                }, [a.img]);
                                 break;
                             case 'blit':
                                 secondaryScreenRects++;
-                                if (this._screens[screenLocation.screenIndex].channel) {
-                                    this._screens[screenLocation.screenIndex].channel.postMessage({
-                                        eventType: 'rect',
-                                        rect: {
-                                           'type': 'blit',
-                                           'data': a.data,
-                                           'img': null,
-                                           'x': a.x,
-                                           'y': a.y,
-                                           'width': a.width,
-                                           'height': a.height,
-                                           'frame_id': a.frame_id,
-                                           'screenLocations': a.screenLocations
-                                        },
-                                        screenLocationIndex: sI
-                                    }, [a.data]);
-                                }
+                                let buf = a.data.buffer;
+                                this._dataBroker.port.postMessage({
+                                    eventType: 'rect',
+                                    rect: {
+                                       'type': 'vid',
+                                       'img': buf,
+                                       'x': a.x,
+                                       'y': a.y,
+                                       'width': a.width,
+                                       'height': a.height,
+                                       'frame_id': a.frame_id,
+                                       'screenLocations': a.screenLocations,
+                                       'vidType': 'buffer'
+                                    },
+                                    screenLocationIndex: sI
+                                }, [buf]);
                                 break;
                             case 'img':
                                 secondaryScreenRects++;
@@ -1303,7 +1329,7 @@ export default class Display {
                                            'src' : a.src
                                         },
                                         screenLocationIndex: sI
-                                    }, [a.src]);
+                                    });
                                 }
                                 break;
                             default:
