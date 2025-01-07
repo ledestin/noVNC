@@ -751,7 +751,7 @@ export default class Display {
         }
 
         // Use threaded image decoder
-        if ((ImageDecoder) && (this._threading)) {
+        if ((typeof ImageDecoder !== 'undefined') && (this._threading)) {
             let imageDecoder = new ImageDecoder({ data: arr, type: mime });
             let rect = {
                 'type': 'vid',  
