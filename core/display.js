@@ -12,7 +12,7 @@ import Base64 from "./base64.js";
 import { toSigned32bit } from './util/int.js';
 import { isWindows } from './util/browser.js';
 import { uuidv4 } from './util/strings.js';
-import sharedWorker from './displayworker.js?sharedworker';
+//import sharedWorker from './displayworker.js?sharedworker';
 import UI from '../app/ui.js';
 
 export default class Display {
@@ -125,14 +125,14 @@ export default class Display {
         this._damageBounds = { left: 0, top: 0, right: this._backbuffer.width, bottom: this._backbuffer.height };
 
         // Data Brokers for secondary display
-        this._dataBroker = new sharedWorker();
-        this._dataBroker.port.start();
-        if (!this._isPrimaryDisplay) {
-            this._dataBroker.port.postMessage({register: this._screenID});
-        } else {
-            this._dataBroker.port.postMessage({register: 'primary'});
-        }
-        this._dataBroker.port.addEventListener('message', this._handleDisplayWorkerMessage.bind(this));
+        //this._dataBroker = new sharedWorker();
+        //this._dataBroker.port.start();
+        //if (!this._isPrimaryDisplay) {
+        //    this._dataBroker.port.postMessage({register: this._screenID});
+        //} else {
+        //    this._dataBroker.port.postMessage({register: 'primary'});
+        //}
+        //this._dataBroker.port.addEventListener('message', this._handleDisplayWorkerMessage.bind(this));
 
         // ===== EVENT HANDLERS =====
 
@@ -732,18 +732,8 @@ export default class Display {
         let that = data[1];
         let imageDecoder = data[2];
         imageDecoder.close();
-        if (!rect.inSecondary) {
-            rect.img = chunk.image;
-            rect.vidType = 'frame';
-        } else {
-            let opt = {format: 'RGBA'};
-            let size = chunk.image.allocationSize(opt);
-            let buf = new ArrayBuffer(size);
-            chunk.image.copyTo(buf, opt);
-            rect.img = buf;
-            rect.vidType = 'buffer';
-            chunk.image.close();
-        }
+        rect.img = chunk.image;
+        rect.vidType = 'frame';
         that._asyncRenderQPush(rect);
     }
 
