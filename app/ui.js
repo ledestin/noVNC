@@ -70,6 +70,7 @@ const UI = {
     selectedMonitor: null,
     refreshRotation: 0,
     currentDisplay: null,
+    displayWindows: [],
 
     supportsBroadcastChannel: (typeof BroadcastChannel !== "undefined"),
 
@@ -2010,8 +2011,9 @@ const UI = {
                     const current = UI.increaseCurrentDisplay(details) 
                     let screen = details.screens[current]
                     const options = 'left='+screen.availLeft+',top='+screen.availTop+',width='+screen.availWidth+',height='+screen.availHeight+',fullscreen'
-                    window.open(new_display_url, '_blank', options);
-                    return
+                    let newdisplay = window.open(new_display_url, '_blank', options);
+                    UI.displayWindows.push(newdisplay);
+                    return;
                 }
             } catch (e) {
                 console.log(e)

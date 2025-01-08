@@ -13,6 +13,7 @@ import { toSigned32bit } from './util/int.js';
 import { isWindows } from './util/browser.js';
 import { uuidv4 } from './util/strings.js';
 import sharedWorker from './displayworker.js?sharedworker';
+import UI from '../app/ui.js';
 
 export default class Display {
     constructor(target, isPrimaryDisplay) {
@@ -114,6 +115,8 @@ export default class Display {
         }];
         this._threading = true;
         this._primaryChannel = null;
+
+        window.addEventListener('message', this._handleDisplayWorkerMessage.bind(this));
 
         //optional offscreen canvas
         this._enableCanvasBuffer = false;
@@ -1277,7 +1280,8 @@ export default class Display {
                                 break;
                             case 'vid':
                                 secondaryScreenRects++;
-                                this._dataBroker.port.postMessage({
+//                                this._dataBroker.port.postMessage({
+                                UI.displayWindows[0].postMessage({
                                     eventType: 'rect',
                                     rect: {
                                        'type': 'vid',
@@ -1296,7 +1300,8 @@ export default class Display {
                             case 'blit':
                                 secondaryScreenRects++;
                                 let buf = a.data.buffer;
-                                this._dataBroker.port.postMessage({
+//                                this._dataBroker.port.postMessage({
+                                UI.displayWindows[0].postMessage({
                                     eventType: 'rect',
                                     rect: {
                                        'type': 'vid',

@@ -345,6 +345,7 @@ select:active {
  * ----------------------------------------
  */
  #noVNC_connection_stats {
+  font-size: 90px;
   top: 0;
   left: auto;
   right: 0;
