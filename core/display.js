@@ -716,7 +716,6 @@ export default class Display {
         let imageDecoder = data[2];
         imageDecoder.close();
         rect.img = chunk.image;
-        rect.vidType = 'frame';
         that._asyncRenderQPush(rect);
     }
 
@@ -816,15 +815,18 @@ export default class Display {
     }
 
     blitImage(x, y, width, height, arr, offset, frame_id, fromQueue) {
-        if (!ArrayBuffer.isView(arr)) {
-            arr = new Uint8Array(arr);
-        }
         if (!fromQueue) {
+            var buf;
+            if (!ArrayBuffer.isView(arr)) {
+                buf = arr;          
+            } else {                
+                buf = arr.buffer;
+            }
             // NB(directxman12): it's technically more performant here to use preallocated arrays,
             // but it's a lot of extra work for not a lot of payoff -- if we're using the render queue,
             // this probably isn't getting called *nearly* as much
             const newArr = new Uint8Array(width * height * 4);
-            newArr.set(new Uint8Array(arr.buffer, 0, newArr.length));
+            newArr.set(new Uint8Array(buf, 0, newArr.length));
             let rect = {
                 'type': 'blit',
                 'data': newArr,
@@ -837,10 +839,17 @@ export default class Display {
             this._processRectScreens(rect);
             this._asyncRenderQPush(rect);
         } else {
-            // NB(directxman12): arr must be an Type Array view
-            let data = new Uint8ClampedArray(arr.buffer,
+            var data;
+            if (!ArrayBuffer.isView(arr)) {
+                data = new Uint8ClampedArray(arr,
+                                             arr.length + offset,
+                                             width * height * 4);
+            } else {
+                data = new Uint8ClampedArray(arr.buffer,
                                              arr.byteOffset + offset,
                                              width * height * 4);
+            }
+            // NB(directxman12): arr must be an Type Array view
             let img = new ImageData(data, width, height);
             if (this._enableCanvasBuffer) {
                 this._drawCtx.putImageData(img, x, y);
@@ -1001,12 +1010,8 @@ export default class Display {
                     }
                     break;
                 case 'vid':
-                    if (a.vidType == 'buffer') {
-                        this.blitImage(pos.x, pos.y, a.width, a.height, a.img, 0, a.frame_id, true);
-                    } else {
-                        this.drawImage(a.img, pos.x, pos.y, a.width, a.height);
-                        a.img.close();
-                    }
+                    this.drawImage(a.img, pos.x, pos.y, a.width, a.height);
+                    a.img.close();
                     break;
                 default:
                     this._syncFrameQueue.shift();
@@ -1217,11 +1222,7 @@ export default class Display {
                                 this.drawImage(a.img, screenLocation.x, screenLocation.y, a.width, a.height);
                                 break;
                             case 'vid':
-                                if (a.vidType == 'buffer') {
-                                    this.blitImage(screenLocation.x, screenLocation.y, a.width, a.height, a.img, 0, a.frame_id, true);
-                                } else {
-                                    this.drawImage(a.img, screenLocation.x, screenLocation.y, a.width, a.height);
-                                }
+                                this.drawImage(a.img, screenLocation.x, screenLocation.y, a.width, a.height);
                                 break;
                             default:
                                 continue;
@@ -1246,8 +1247,7 @@ export default class Display {
                                            'width': a.width,
                                            'height': a.height,
                                            'frame_id': a.frame_id,
-                                           'screenLocations': a.screenLocations,
-                                           'vidType': a.vidType
+                                           'screenLocations': a.screenLocations
                                         },
                                         screenLocationIndex: sI
                                     }, [a.img]);
@@ -1260,15 +1260,15 @@ export default class Display {
                                     this._screens[screenLocation.screenIndex].channel.postMessage({
                                         eventType: 'rect',
                                         rect: {
-                                           'type': 'vid',
-                                           'img': buf,
+                                           'type': 'blit',
+                                           'img': null,
+                                           'data': buf,
                                            'x': a.x,
                                            'y': a.y,
                                            'width': a.width,
                                            'height': a.height,
                                            'frame_id': a.frame_id,
-                                           'screenLocations': a.screenLocations,
-                                           'vidType': 'buffer'
+                                           'screenLocations': a.screenLocations
                                         },
                                         screenLocationIndex: sI
                                     }, [buf]);
