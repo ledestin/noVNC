@@ -12,7 +12,6 @@ import Base64 from "./base64.js";
 import { toSigned32bit } from './util/int.js';
 import { isWindows } from './util/browser.js';
 import { uuidv4 } from './util/strings.js';
-//import sharedWorker from './displayworker.js?sharedworker';
 import UI from '../app/ui.js';
 
 export default class Display {
@@ -116,31 +115,18 @@ export default class Display {
         this._threading = true;
         this._primaryChannel = null;
 
-        window.addEventListener('message', this._handleDisplayWorkerMessage.bind(this));
-
         //optional offscreen canvas
         this._enableCanvasBuffer = false;
         this._backbuffer = document.createElement('canvas');
         this._drawCtx = this._backbuffer.getContext('2d');
         this._damageBounds = { left: 0, top: 0, right: this._backbuffer.width, bottom: this._backbuffer.height };
 
-        // Data Brokers for secondary display
-        //this._dataBroker = new sharedWorker();
-        //this._dataBroker.port.start();
-        //if (!this._isPrimaryDisplay) {
-        //    this._dataBroker.port.postMessage({register: this._screenID});
-        //} else {
-        //    this._dataBroker.port.postMessage({register: 'primary'});
-        //}
-        //this._dataBroker.port.addEventListener('message', this._handleDisplayWorkerMessage.bind(this));
-
         // ===== EVENT HANDLERS =====
 
         this.onflush = () => {  }; // A flush request has finished
 
         if (!this._isPrimaryDisplay) {
-            this._screens[0].channel = new BroadcastChannel(`screen_${this._screenID}_channel`);
-            this._screens[0].channel.addEventListener('message', this._handleSecondaryDisplayMessage.bind(this));
+            window.addEventListener('message', this._handleSecondaryDisplayMessage.bind(this));
         }
 
         Log.Debug("<< Display.constructor");
@@ -432,14 +418,11 @@ export default class Display {
                 pixelRatio: pixelRatio,
                 containerHeight: containerHeight,
                 containerWidth: containerWidth,
-                channel: null,
+                channel: UI.displayWindows[this.screens.length],
                 scale: scale,
                 x2: x + serverWidth,
                 y2: serverHeight
             }
-
-            new_screen.channel = new BroadcastChannel(`screen_${screenID}_channel`);
-            //new_screen.channel.message = this._handleSecondaryDisplayMessage().bind(this);
 
             this._screens.push(new_screen);
             new_screen.channel.postMessage({ eventType: "registered", screenIndex: new_screen.screenIndex });
@@ -457,7 +440,7 @@ export default class Display {
                 if (this._screens[i].screenID == screenID) {
                     //flush all rects on target screen
                     this._flushRectsScreen(i);
-                    this._screens[i].channel.close();
+                    UI.displayWindows.splice(i, 1);
                     this._screens.splice(i, 1);
                     removed = true;
                     break;
@@ -933,24 +916,6 @@ export default class Display {
         }
     }
 
-    _handleDisplayWorkerMessage(event) {
-        if (event.data) {
-            switch (event.data.eventType) {
-                case 'rect':
-                    let rect = event.data.rect; 
-                    //overwrite screen locations when received on the secondary display
-                    rect.screenLocations = [ rect.screenLocations[event.data.screenLocationIndex] ]
-                    rect.screenLocations[0].screenIndex = 0;
-                    this._syncFrameQueue.push(rect);
-                    if (this._syncFrameQueue.length > 5000) {
-                        this._syncFrameQueue.shift();
-                        this._droppedRects++;
-                    }
-                    break;
-            }
-
-        }
-    }
     _handleSecondaryDisplayMessage(event) {
         if (!this._isPrimaryDisplay && event.data) {
             switch (event.data.eventType) {
@@ -1270,42 +1235,44 @@ export default class Display {
                                 break;
                             case 'vid':
                                 secondaryScreenRects++;
-//                                this._dataBroker.port.postMessage({
-                                UI.displayWindows[0].postMessage({
-                                    eventType: 'rect',
-                                    rect: {
-                                       'type': 'vid',
-                                       'img': a.img,
-                                       'x': a.x,
-                                       'y': a.y,
-                                       'width': a.width,
-                                       'height': a.height,
-                                       'frame_id': a.frame_id,
-                                       'screenLocations': a.screenLocations,
-                                       'vidType': a.vidType
-                                    },
-                                    screenLocationIndex: sI
-                                }, [a.img]);
+                                if (this._screens[screenLocation.screenIndex].channel) {
+                                    this._screens[screenLocation.screenIndex].channel.postMessage({
+                                        eventType: 'rect',
+                                        rect: {
+                                           'type': 'vid',
+                                           'img': a.img,
+                                           'x': a.x,
+                                           'y': a.y,
+                                           'width': a.width,
+                                           'height': a.height,
+                                           'frame_id': a.frame_id,
+                                           'screenLocations': a.screenLocations,
+                                           'vidType': a.vidType
+                                        },
+                                        screenLocationIndex: sI
+                                    }, [a.img]);
+                                }
                                 break;
                             case 'blit':
                                 secondaryScreenRects++;
                                 let buf = a.data.buffer;
-//                                this._dataBroker.port.postMessage({
-                                UI.displayWindows[0].postMessage({
-                                    eventType: 'rect',
-                                    rect: {
-                                       'type': 'vid',
-                                       'img': buf,
-                                       'x': a.x,
-                                       'y': a.y,
-                                       'width': a.width,
-                                       'height': a.height,
-                                       'frame_id': a.frame_id,
-                                       'screenLocations': a.screenLocations,
-                                       'vidType': 'buffer'
-                                    },
-                                    screenLocationIndex: sI
-                                }, [buf]);
+                                if (this._screens[screenLocation.screenIndex].channel) {
+                                    this._screens[screenLocation.screenIndex].channel.postMessage({
+                                        eventType: 'rect',
+                                        rect: {
+                                           'type': 'vid',
+                                           'img': buf,
+                                           'x': a.x,
+                                           'y': a.y,
+                                           'width': a.width,
+                                           'height': a.height,
+                                           'frame_id': a.frame_id,
+                                           'screenLocations': a.screenLocations,
+                                           'vidType': 'buffer'
+                                        },
+                                        screenLocationIndex: sI
+                                    }, [buf]);
+                                }
                                 break;
                             case 'img':
                                 secondaryScreenRects++;
@@ -1328,8 +1295,9 @@ export default class Display {
                                 }
                                 break;
                             default:
-                                if (this._screens[screenLocation.screenIndex].channel) {
-                                    this._screens[screenLocation.screenIndex].channel.postMessage({
+                                secondaryScreenRects++;
+                                    if (this._screens[screenLocation.screenIndex].channel) {
+                                        this._screens[screenLocation.screenIndex].channel.postMessage({
                                         eventType: 'rect',
                                         rect: a,
                                         screenLocationIndex: sI

@@ -70,7 +70,7 @@ const UI = {
     selectedMonitor: null,
     refreshRotation: 0,
     currentDisplay: null,
-    displayWindows: [],
+    displayWindows: ['primary'],
 
     supportsBroadcastChannel: (typeof BroadcastChannel !== "undefined"),
 
@@ -88,7 +88,13 @@ const UI = {
 
     // Render default UI and initialize settings menu
     start() {
-        //initialize settings then apply quality presents
+
+        // If secondary monitor skip init
+        if (window.location.href.includes("screen.html")) {
+            return;
+        }
+
+        // Initialize settings then apply quality presents
         UI.initSettings();
         UI.updateQuality();
 
@@ -2022,7 +2028,8 @@ const UI = {
         }
         
         Log.Debug(`Opening a secondary display ${new_display_url}`)
-        window.open(new_display_url, '_blank', 'toolbar=0,location=0,menubar=0');
+        let newdisplay = window.open(new_display_url, '_blank', 'toolbar=0,location=0,menubar=0');
+        UI.displayWindows.push(newdisplay);
     },
 
     initMonitors(screenPlan) {
