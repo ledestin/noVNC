@@ -1804,10 +1804,6 @@ const UI = {
                     UI.forceSetting('enable_perf_stats', event.data.value, false);
                     UI.showStats();
                     break;
-                case 'set_threading':
-                    UI.forceSetting('enable_threading', event.data.value, false);
-                    UI.threading();
-                    break;
                 case 'set_idle_timeout':
                     //message value in seconds
                     const idle_timeout_min = Math.ceil(event.data.value / 60);

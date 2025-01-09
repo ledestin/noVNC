@@ -12,3 +12,4 @@ recordings
 noVNC-*.tgz
 /dist
 /index.html
+/package-lock.json
