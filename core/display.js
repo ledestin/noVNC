@@ -13,6 +13,7 @@ import { toSigned32bit } from './util/int.js';
 import { isWindows } from './util/browser.js';
 import { uuidv4 } from './util/strings.js';
 import UI from '../app/ui.js';
+import displayWorker from './displayworker.js?worker';
 
 export default class Display {
     constructor(target, isPrimaryDisplay) {
@@ -121,6 +122,12 @@ export default class Display {
         this._drawCtx = this._backbuffer.getContext('2d');
         this._damageBounds = { left: 0, top: 0, right: this._backbuffer.width, bottom: this._backbuffer.height };
 
+        // Worker
+
+        this._worker = new displayWorker();
+        this._workerCanvas = null;
+        this._offscreen = null;
+
         // ===== EVENT HANDLERS =====
 
         this.onflush = () => {  }; // A flush request has finished
@@ -128,6 +135,8 @@ export default class Display {
         if (!this._isPrimaryDisplay) {
             window.addEventListener('message', this._handleSecondaryDisplayMessage.bind(this));
         }
+
+        this._worker.addEventListener('message', this._displayWorkerReturn.bind(this));
 
         Log.Debug("<< Display.constructor");
     }
@@ -181,6 +190,12 @@ export default class Display {
 
     get threading() { return this._threading; }
     set threading(bool) {
+        // Clear out the top canvas after it renders everything
+        if (bool) {
+            setTimeout(function(that) {
+                that._targetCtx.clearRect(0,0,that._fbWidth,that._fbHeight);
+            }, 100, this);
+        }
         this._threading = bool;
     }
 
@@ -556,6 +571,9 @@ export default class Display {
     }
 
     resize(width, height) {
+
+        this._setupCanvas(width, height, true);
+
         this._prevDrawStyle = "";
 
         this._fbWidth = width;
@@ -674,6 +692,18 @@ export default class Display {
         }
     }
 
+    fillOffscreen(x, y, width, height, color, frame_id) {
+        this._worker.postMessage({
+            fill: {
+                'color': color,
+                'x': x,
+                'y': y,
+                'width': width,
+                'height': height
+             }
+         });
+    }
+
     copyImage(oldX, oldY, newX, newY, w, h, frame_id, fromQueue) {
         if (!fromQueue) {
             let rect = {
@@ -710,6 +740,19 @@ export default class Display {
         }
     }
 
+    copyOffscreen(oldX, oldY, newX, newY, w, h, frame_id) {
+        this._worker.postMessage({
+            copy: {
+                'oldX': oldX,
+                'oldY': oldY,
+                'newX': newX,
+                'newY': newY,
+                'w': w,
+                'h': h
+             }
+         });
+    }
+
     _handleVidChunk(data, chunk) {
         let rect = data[0];
         let that = data[1];
@@ -727,7 +770,9 @@ export default class Display {
 
         // Use threaded image decoder
         if ((typeof ImageDecoder !== 'undefined') && (this._threading)) {
+            this._setupCanvas(this._fbWidth, this._fbHeight, false);
             let imageDecoder = new ImageDecoder({ data: arr, type: mime });
+            //this._targetCtx.clearRect(0, 0, this._fbWidth, this._fbHeight);
             let rect = {
                 'type': 'vid',  
                 'img': null,
@@ -861,6 +906,26 @@ export default class Display {
         }
     }
 
+    blitOffscreen(x, y, width, height, arr, offset, frame_id) {
+        var buf;
+        if (!ArrayBuffer.isView(arr)) {
+            buf = arr;
+        } else {   
+            buf = arr.buffer;
+        }
+        this._worker.postMessage({
+            blitBuf: {
+                'data': buf,
+                'x': x,
+                'y': y,
+                'width': width,
+                'height': height,
+                'offset': offset
+             }
+         }, [buf]);
+    }
+
+
     blitQoi(x, y, width, height, arr, offset, frame_id, fromQueue) {
         if (!fromQueue) {
             let rect = {
@@ -895,6 +960,18 @@ export default class Display {
             Log.Error('Invalid image recieved.'); //KASM-2090
         }
     }
+
+    drawImageOffscreen(img, x, y, w, h, overlay=false) {
+        this._worker.postMessage({
+            drawFrame: {
+                'img': img,
+                'x': x,
+                'y': y,
+                'w': w,
+                'h': h
+             }
+         }, [img]);
+    } 
 
     autoscale(containerWidth, containerHeight, scaleRatio=0) {
         if (containerWidth === 0 || containerHeight === 0) {
@@ -1207,13 +1284,25 @@ export default class Display {
                     if (screenLocation.screenIndex == 0) {
                         switch (a.type) {
                             case 'copy':
-                                this.copyImage(screenLocation.oldX, screenLocation.oldY, screenLocation.x, screenLocation.y, a.width, a.height, a.frame_id, true);
+                                if ((typeof ImageDecoder !== 'undefined') && (this._threading) && (this._screens.length < 2)) {
+                                    this.copyOffscreen(screenLocation.oldX, screenLocation.oldY, screenLocation.x, screenLocation.y, a.width, a.height, a.frame_id);
+                                } else {
+                                    this.copyImage(screenLocation.oldX, screenLocation.oldY, screenLocation.x, screenLocation.y, a.width, a.height, a.frame_id, true);
+                                }
                                 break;
                             case 'fill':
-                                this.fillRect(screenLocation.x, screenLocation.y, a.width, a.height, a.color, a.frame_id, true);
+                                if ((typeof ImageDecoder !== 'undefined') && (this._threading) && (this._screens.length < 2)) {
+                                    this.fillOffscreen(screenLocation.x, screenLocation.y, a.width, a.height, a.color, a.frame_id);
+                                } else {
+                                    this.fillRect(screenLocation.x, screenLocation.y, a.width, a.height, a.color, a.frame_id, true);
+                                }
                                 break;
                             case 'blit':
-                                this.blitImage(screenLocation.x, screenLocation.y, a.width, a.height, a.data, 0, a.frame_id, true);
+                                if ((typeof ImageDecoder !== 'undefined') && (this._threading) && (this._screens.length < 2)) {
+                                    this.blitOffscreen(screenLocation.x, screenLocation.y, a.width, a.height, a.data, 0, a.frame_id);
+                                } else {
+                                    this.blitImage(screenLocation.x, screenLocation.y, a.width, a.height, a.data, 0, a.frame_id, true);
+                                }
                                 break;
                             case 'blitQ':
                                 this.blitQoi(screenLocation.x, screenLocation.y, a.width, a.height, a.data, 0, a.frame_id, true);
@@ -1222,7 +1311,11 @@ export default class Display {
                                 this.drawImage(a.img, screenLocation.x, screenLocation.y, a.width, a.height);
                                 break;
                             case 'vid':
-                                this.drawImage(a.img, screenLocation.x, screenLocation.y, a.width, a.height);
+                                if (this._screens.length < 2) {
+                                    this.drawImageOffscreen(a.img, screenLocation.x, screenLocation.y, a.width, a.height);
+                                } else {
+                                    this.drawImage(a.img, screenLocation.x, screenLocation.y, a.width, a.height, true);
+                                }
                                 break;
                             default:
                                 continue;
@@ -1428,6 +1521,38 @@ export default class Display {
         if (newStyle !== this._prevDrawStyle) {
             targetCtx.fillStyle = newStyle;
             this._prevDrawStyle = newStyle;
+        }
+    }
+
+    _setupCanvas(width, height, destroy) {
+        if ((! this._offscreen) || (destroy)) {
+            try {
+                this._workerCanvas.remove();
+            } catch (e) {
+                //pass
+            }
+            this._workerCanvas = null;
+            this._offscreen = null;
+            this._workerCanvas = document.createElement('canvas');
+            this._workerCanvas.width = width;
+            this._workerCanvas.height = height;
+            this._workerCanvas.style.position = 'absolute';
+            this._workerCanvas.style.top = '0px';
+            this._workerCanvas.style.left = '0px';
+            this._workerCanvas.style.zIndex = "1";
+            this._offscreen = this._workerCanvas.transferControlToOffscreen();
+            this._worker.postMessage({ canvas: this._offscreen }, [this._offscreen]);
+            document.body.appendChild(this._workerCanvas);
+        }
+    }
+
+    _displayWorkerReturn(event) {
+        if (event.data.hasOwnProperty('freemem')) {
+            event.data.freemem = null;
+        }
+        if (event.data.hasOwnProperty('close')) {
+            event.data.close.close();
+            event.data.close = null;
         }
     }
 }

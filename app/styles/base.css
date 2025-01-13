@@ -352,6 +352,7 @@ select:active {
   background: #9fa5a2d4;
   color: #00ffa2d4;
   visibility: hidden;
+  z-index: 10;
 }
 
 /* ----------------------------------------
