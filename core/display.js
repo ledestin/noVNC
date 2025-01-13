@@ -772,7 +772,6 @@ export default class Display {
         if ((typeof ImageDecoder !== 'undefined') && (this._threading)) {
             this._setupCanvas(this._fbWidth, this._fbHeight, false);
             let imageDecoder = new ImageDecoder({ data: arr, type: mime });
-            //this._targetCtx.clearRect(0, 0, this._fbWidth, this._fbHeight);
             let rect = {
                 'type': 'vid',  
                 'img': null,
