@@ -54,7 +54,7 @@
     "browserify": "*",
     "chai": "*",
     "commander": "*",
-    "core-js": "^3.18.3",
+    "core-js": "3.18.3",
     "css-loader": "^5.0.1",
     "es-module-loader": "*",
     "eslint": "*",
